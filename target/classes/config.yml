@@ -1,0 +1,88 @@
+# ========================================
+# King's Line - Configuration
+# ========================================
+
+# ゲーム設定
+game:
+  # 最小プレイヤー数 (これ以上でゲーム開始可能)
+  min-players: 6
+  
+  # 準備フェーズの時間 (秒)
+  starting-phase-duration: 45
+  
+  # リスポーン時間 (秒)
+  respawn-time: 5
+  
+  # 勝利に必要なポイント (相手のリスポーン無効化)
+  points-to-win: 500
+  
+  # 小規模モードの閾値 (1チームあたりの人数)
+  # これ以下ならBエリアのみ、超えたらA/B/C
+  small-scale-threshold: 4
+
+# スコア設定
+score:
+  # 通常キル
+  kill: 4
+  
+  # キングキル
+  king-kill: 20
+  
+  # キングアシスト
+  king-assist: 5
+  
+  # キング死亡ペナルティ (倒されたチーム)
+  king-death-penalty: -50
+  
+  # コア破壊
+  core-destroy: 100
+  
+  # Bエリア占領 (tick毎)
+  area-capture: 2
+  
+  # エリア占領の判定間隔 (tick = 20分の1秒, 60 = 3秒)
+  area-tick-interval: 60
+
+# Shard設定
+shard:
+  # Shardノードのスポーン間隔 (秒)
+  spawn-interval: 10
+  
+  # 1回のスポーンで出る個数
+  spawn-amount: 1
+  
+  # コア破壊時にドロップする数
+  core-destroy-drop: 20
+  
+  # キング死亡時にドロップする数
+  king-death-drop: 5
+
+# Lumina設定
+lumina:
+  # キル時の獲得量
+  per-kill: 2
+
+# キング設定
+king:
+  # 投票フェーズ: 立候補受付時間 (秒)
+  candidacy-duration: 15
+  
+  # 投票フェーズ: 投票時間 (秒)
+  vote-duration: 15
+  
+  # オーラの範囲 (ブロック)
+  aura-radius: 8
+  
+  # キング死亡時の敵バフ時間 (秒)
+  death-buff-duration: 15
+
+# エレメント設定
+element:
+  # エレメント選択の制限時間 (秒)
+  selection-duration: 20
+  
+  # SP技のクールダウン (秒)
+  sp-cooldown: 15
+  
+  # SP技に必要なヒット数
+  sp-required-hits: 10

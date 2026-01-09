@@ -1,0 +1,104 @@
+# ========================================
+# King's Line - Arena Configuration
+# ========================================
+
+# 現在使用するアリーナ
+current-arena: "default"
+
+# アリーナ定義
+arenas:
+  default:
+    # ワールド名 (設定後に自動で入力されます)
+    world: "world"
+    
+    # チームスポーン位置 (/kl setspawn で設定)
+    spawns:
+      blue:
+        x: 0.5
+        y: 65.0
+        z: -50.5
+        yaw: 0.0
+        pitch: 0.0
+      red:
+        x: 0.5
+        y: 65.0
+        z: 50.5
+        yaw: 180.0
+        pitch: 0.0
+    
+    # コア位置 (/kl setcore で設定)
+    cores:
+      blue:
+        x: 0
+        y: 65
+        z: -60
+      red:
+        x: 0
+        y: 65
+        z: 60
+    
+    # NPC位置 (/kl setnpc で設定)
+    npcs:
+      blue:
+        x: 5.5
+        y: 65.0
+        z: -55.5
+      red:
+        x: 5.5
+        y: 65.0
+        z: 55.5
+    
+    # エリア定義 (/kl setarea で設定)
+    areas:
+      # 中央エリア (常に有効)
+      B:
+        pos1:
+          x: -20
+          y: 60
+          z: -20
+        pos2:
+          x: 20
+          y: 80
+          z: 20
+        shard-spawn:
+          x: 0.5
+          y: 65.0
+          z: 0.5
+      
+      # 自陣寄りエリア (5v5以上で有効)
+      A:
+        pos1:
+          x: -15
+          y: 60
+          z: -45
+        pos2:
+          x: 15
+          y: 80
+          z: -35
+        shard-spawn:
+          x: 0.5
+          y: 65.0
+          z: -40.5
+      
+      # 敵陣寄りエリア (5v5以上で有効)
+      C:
+        pos1:
+          x: -15
+          y: 60
+          z: 35
+        pos2:
+          x: 15
+          y: 80
+          z: 45
+        shard-spawn:
+          x: 0.5
+          y: 65.0
+          z: 40.5
+    
+    # ロビー位置 (ゲーム終了後のテレポート先)
+    lobby:
+      x: 0.5
+      y: 65.0
+      z: 0.5
+      yaw: 0.0
+      pitch: 0.0

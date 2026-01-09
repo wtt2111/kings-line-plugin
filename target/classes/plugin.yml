@@ -1,0 +1,25 @@
+name: KingsLine
+version: '1.0-SNAPSHOT'
+main: tensaimc.kingsline.KingsLine
+description: King's Line - 2チーム対戦型 PvP ミニゲーム
+author: tensaimc
+
+commands:
+  kl:
+    description: King's Line メインコマンド
+    usage: /<command> [subcommand]
+    aliases: [kingsline, kingline]
+
+permissions:
+  kingsline.play:
+    description: ゲームに参加できる
+    default: true
+  kingsline.stats:
+    description: 統計を見る
+    default: true
+  kingsline.party:
+    description: パーティー機能を使う
+    default: true
+  kingsline.admin:
+    description: 管理者コマンドを使用
+    default: op
