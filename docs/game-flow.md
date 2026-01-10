@@ -9,8 +9,9 @@
        │ /kl start
        ▼
 ┌─────────────┐
-│  STARTING   │  準備フェーズ (30-60秒)
+│  STARTING   │  準備フェーズ (約45秒)
 │             │  - チーム振り分け
+│             │  - Title表示
 │             │  - エレメント選択
 │             │  - キング投票
 └──────┬──────┘
@@ -21,14 +22,15 @@
 │             │  - PvP有効
 │             │  - エリア制圧
 │             │  - Shard/Lumina収集
+│             │  - コア攻防
 └──────┬──────┘
        │ 500pt到達 → 全滅
        ▼
 ┌─────────────┐
 │   ENDING    │  終了処理
 │             │  - 勝者発表
-│             │  - 統計表示
-│             │  - ワールドリセット
+│             │  - 統計保存
+│             │  - クリーンアップ
 └─────────────┘
 ```
 
@@ -48,7 +50,7 @@
 ## Phase 2: STARTING (準備フェーズ)
 
 ### 時間
-- 30〜60秒 (config.ymlで設定可能)
+- 約45秒（エレメント選択30秒 + キング投票15秒）
 
 ### 処理順序
 
@@ -59,75 +61,87 @@
 3. パーティーに属さないプレイヤーをバランス調整しながら割り当て
 ```
 
-#### 2. エレメント選択
-- 全プレイヤーに「エレメント選択アイテム」を配布
-- 右クリックでGUIを開き、Fire/Ice/Wind/Earthから選択
-- 時間内に選択しない場合はランダム
-
-#### 3. キング投票
+#### 2. Title表示
+全プレイヤーに大きく表示：
 ```
-1. 立候補受付 (15秒)
-   - チャットで「!king」と発言で立候補
-   
-2. 投票 (15秒)
-   - 立候補者がいればGUIで投票
-   - 最多票のプレイヤーがキングに決定
-   
-3. フォールバック
-   - 立候補者0人 → ランダム or 最高スタッツ
-   - 同票 → ランダム
+⚔ KING'S LINE ⚔
+準備フェーズ開始！
 ```
 
-#### 4. 初期装備配布
-- 皮フルセット
-- 石の剣
-- 食料 (ステーキ16個など)
-- エレメント選択アイテムは回収
+#### 3. エレメント選択
+- **ネザースター**をホットバー中央に配布
+- 右クリックでエレメント選択GUIを開く
+- Fire / Ice / Wind / Earth から選択
+- 未選択者にはアクションバーで繰り返し催促
+- 時間切れの場合はランダム
 
-#### 5. テレポート
+#### 4. キング投票
+- Title表示：「👑 キング投票タイム 👑」
+- チャットで **`!king`** と発言で立候補
+- 立候補者がいればその中から選出
+- いなければランダム選出
+
+#### 5. テレポート & 初期装備
 - 各チームのスポーン地点へテレポート
-- バリア状態 (移動不可 or 透明壁)
+- 初期装備配布：
+  - 皮フルセット（チームカラー）
+  - 木の剣
+  - ステーキ 16個
 
 ---
 
 ## Phase 3: RUNNING (本戦)
 
-### 開始時
-- バリア解除
-- 全プレイヤーに開始メッセージ
-- BGM再生 (オプション)
+### 開始時の処理
+1. **NPCスポーン** - 各チームの拠点にショップ/銀行NPC
+2. **スコアボード開始** - サイドバー、ボスバー表示
+3. **コア監視開始** - 接近警告システム
+4. **Shardスポーン開始** - 10秒ごと
+5. **キングオーラ開始** - 1秒ごと周囲に Speed I
 
-### 継続処理 (ゲームループ)
+### ゲームループ
 
 #### 3秒ごと: エリア占領判定
 ```java
-// Bエリア占領ポイント
-int blueCount = areaB.getPlayersInside(Team.BLUE).size();
-int redCount = areaB.getPlayersInside(Team.RED).size();
+// Bエリア内の人数をカウント
+int blueCount = areaB.getPlayersInside(Team.BLUE);
+int redCount = areaB.getPlayersInside(Team.RED);
 
 if (blueCount > redCount) {
-    scoreManager.addPoints(Team.BLUE, 2);
+    addScore(Team.BLUE, 2);
+    // 該当プレイヤーにアクションバー: "Bエリア制圧中！ +2pt"
 } else if (redCount > blueCount) {
-    scoreManager.addPoints(Team.RED, 2);
+    addScore(Team.RED, 2);
 }
-// 同数は何もなし
 ```
 
 #### 10秒ごと: Shardスポーン
 ```java
-// A, B, Cエリアの指定座標にShardアイテムをドロップ
-shardManager.spawnShard(areaA.getSpawnPoint());
-shardManager.spawnShard(areaB.getSpawnPoint());
-shardManager.spawnShard(areaC.getSpawnPoint());
+// 各エリアにShardをドロップ
+shardManager.spawnShard(areaB.getSpawnPoint(), amount);
+// 大規模モードならA/Cにも
 ```
 
-#### 1秒ごと: キングオーラ
+#### 1秒ごと: 拠点帰還チェック
 ```java
-// キングの周囲8ブロックの味方にSpeed I
-for (KLPlayer klp : getTeamPlayers(king.getTeam())) {
-    if (klp.getLocation().distance(king.getLocation()) <= 8) {
-        klp.addPotionEffect(new PotionEffect(SPEED, 40, 0));
+// スポーン地点から10ブロック以内で自動貯金
+if (distance <= 10) {
+    if (shardCarrying > 0) {
+        shardManager.onReturnToBase(klPlayer);
     }
+    if (luminaCarrying > 0) {
+        luminaManager.onReturnToBase(klPlayer);
+    }
+}
+```
+
+#### 2秒ごと: コア接近チェック
+```java
+// 敵がコアから10ブロック以内に入ったら警告
+if (distance <= 10) {
+    warnTeam(coreTeam);
+    // ボスバー: "⚠ コアに敵が接近中！"
+    // サウンド再生
 }
 ```
 
@@ -137,66 +151,73 @@ for (KLPlayer klp : getTeamPlayers(king.getTeam())) {
 ```java
 // ポイント加算
 if (victim.isKing()) {
-    scoreManager.addPoints(killer.getTeam(), 20);      // キングキル
-    scoreManager.addPoints(victim.getTeam(), -50);     // ペナルティ
+    addScore(killer.getTeam(), 20);      // キングキル
+    addScore(victim.getTeam(), -50);     // ペナルティ
     // 敵全員にStrength 15秒
     // Shard 5個ドロップ
+    // 新キング選出
 } else {
-    scoreManager.addPoints(killer.getTeam(), 4);       // 通常キル
+    addScore(killer.getTeam(), 4);       // 通常キル
 }
 
-// Lumina加算
-luminaManager.addLumina(killer, 2);
+// Lumina付与（所持中に加算）
+killer.addLuminaCarrying(2);
 
-// SPゲージ (キラーが与えたヒット数でカウント済み)
+// SPゲージ加算（ヒット数でカウント済み）
 ```
 
 #### Shard拾得時
 ```java
-// インベントリに追加 (未確定状態)
-klPlayer.addShardCarrying(1);
-player.sendMessage("Shard を拾いました！拠点に持ち帰ってください。");
+klPlayer.addShardCarrying(amount);
+// アクションバー: "◈+1 (所持: 3)"
 ```
 
-#### Shard銀行 (NPC右クリック)
+#### Lumina拾得時（敵がドロップしたもの）
 ```java
-int carrying = klPlayer.getShardCarrying();
-if (carrying > 0) {
-    teamManager.addTeamShard(klPlayer.getTeam(), carrying);
-    klPlayer.setShardCarrying(0);
-    player.sendMessage(carrying + " Shard をチームに納めました！");
-}
+klPlayer.addLuminaCarrying(amount);
+// アクションバー: "✦+1 (所持: 5)"
 ```
 
 #### 死亡時
 ```java
-// 所持Shardをドロップ
-if (klPlayer.getShardCarrying() > 0) {
-    shardManager.dropShard(deathLocation, klPlayer.getShardCarrying());
-    klPlayer.setShardCarrying(0);
-}
+// 所持中の通貨をドロップ
+shardManager.dropPlayerShards(klPlayer, deathLocation);
+luminaManager.dropPlayerLumina(klPlayer, deathLocation);
 
 // リスポーン可能か確認
 if (klPlayer.canRespawn()) {
-    // 5秒後にリスポーン
-    scheduleRespawn(klPlayer, 5);
+    // リスポーン → 装備再付与
 } else {
     // 観戦モードへ
-    setSpectator(klPlayer);
 }
+```
+
+#### コア破壊時
+```java
+// ポイント加算
+addScore(destroyer.getTeam(), 100);
+
+// Shardドロップ
+shardManager.dropCoreShards(coreLocation);  // 20個
+
+// 全員にTitle通知
+sendTitle("💥 コア破壊！", "○○のコアが破壊されました！");
+
+// 5秒後に再生成
+scheduleRegeneration(coreLocation, team);
 ```
 
 ### 500pt到達時
 ```java
-Team winner = scoreManager.getLeadingTeam();
-Team loser = winner.getOpposite();
+Team loser = getLosingTeam();
 
 // 敗北チームのリスポーン無効化
 for (KLPlayer klp : getTeamPlayers(loser)) {
     klp.setCanRespawn(false);
 }
 
-broadcast("§c" + loser.getName() + "チームのリスポーンが無効化されました！");
+// 全員にTitle通知
+sendTitle("⚠ リスポーン無効化！", loser + "チームはリスポーンできなくなりました！");
 ```
 
 ---
@@ -208,60 +229,49 @@ broadcast("§c" + loser.getName() + "チームのリスポーンが無効化さ�
 
 ### 処理
 
-#### 1. ゲーム停止
-- PvP無効化
-- 全プレイヤーを動けなくする (フリーズ)
+#### 1. 停止処理
+- スコアボード停止
+- コア監視停止
+- Shardスポーン停止
+- NPC削除
 
-#### 2. 結果発表 (5秒間)
+#### 2. 結果発表
+勝利チームにはTitle表示：
+```
+🎉 勝利！ 🎉
+おめでとうございます！
+```
+
+敗北チームには：
+```
+敗北...
+また次回頑張りましょう
+```
+
+チャットに詳細：
 ```
 =====================================
-        🏆 BLUE TEAM WINS! 🏆
+      BLUE TEAM WINS!
 =====================================
   Final Score: BLUE 523 - RED 500
-  
-  MVP: PlayerName (12 Kills)
-  
-  King Kills: 2
-  Core Destroyed: Yes
 =====================================
 ```
 
 #### 3. 統計保存
 ```java
 for (KLPlayer klp : getAllPlayers()) {
-    database.addKills(klp.getUuid(), klp.getKillsThisGame());
-    database.addDeaths(klp.getUuid(), klp.getDeathsThisGame());
-    if (klp.getTeam() == winnerTeam) {
-        database.addWin(klp.getUuid());
-    }
+    statsDatabase.recordGame(
+        klp.getUuid(),
+        klp.getTeam() == winnerTeam,
+        klp.getKillsThisGame(),
+        klp.getDeathsThisGame()
+    );
 }
 ```
 
 #### 4. クリーンアップ
-- 全プレイヤーをロビーへテレポート (設定されていれば)
+- 全プレイヤーをロビーへテレポート
+- インベントリクリア
+- ポーション効果クリア
 - プレイヤーデータリセット
-- アリーナリセット (オプション)
 - GameState → WAITING
-
----
-
-## スケール切り替え
-
-### 判定タイミング
-- STARTING フェーズ開始時
-
-### ルール
-```java
-int totalPlayers = getPlayerCount();
-int perTeam = totalPlayers / 2;
-
-if (perTeam <= 4) {
-    // 小規模モード: Bエリアのみ
-    areaA.setEnabled(false);
-    areaC.setEnabled(false);
-} else {
-    // 中〜大規模モード: A/B/C全て
-    areaA.setEnabled(true);
-    areaC.setEnabled(true);
-}
-```

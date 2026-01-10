@@ -13,7 +13,7 @@ public enum TeamUpgrade {
             "皮装備",
             "鉄装備",
             "ダイヤ装備"
-    }, new int[]{0, 100, 250}),
+    }, new int[]{0, 35, 90}),
     
     // 武器アップグレード
     WEAPON("武器", Material.DIAMOND_SWORD, new String[]{
@@ -21,7 +21,7 @@ public enum TeamUpgrade {
             "石の剣",
             "鉄の剣",
             "ダイヤの剣"
-    }, new int[]{0, 50, 120, 250}),
+    }, new int[]{0, 20, 45, 90}),
     
     // プロテクションエンチャント
     PROTECTION("プロテクション", Material.ENCHANTED_BOOK, new String[]{
@@ -29,7 +29,7 @@ public enum TeamUpgrade {
             "プロテクション I",
             "プロテクション II",
             "プロテクション III"
-    }, new int[]{0, 80, 160, 300}),
+    }, new int[]{0, 30, 60, 110}),
     
     // シャープネスエンチャント
     SHARPNESS("シャープネス", Material.ENCHANTED_BOOK, new String[]{
@@ -37,28 +37,28 @@ public enum TeamUpgrade {
             "シャープネス I",
             "シャープネス II",
             "シャープネス III"
-    }, new int[]{0, 80, 160, 300}),
+    }, new int[]{0, 30, 60, 110}),
     
     // HP強化
     HEALTH("生命力強化", Material.GOLDEN_APPLE, new String[]{
             "なし",
             "HP +2 ハート",
             "HP +4 ハート"
-    }, new int[]{0, 150, 350}),
+    }, new int[]{0, 55, 130}),
     
     // スピード強化
     SPEED("俊足", Material.SUGAR, new String[]{
             "なし",
             "移動速度 +10%",
             "移動速度 +20%"
-    }, new int[]{0, 120, 280}),
+    }, new int[]{0, 45, 100}),
     
     // 弓ダメージ
     BOW_POWER("鷹の目", Material.BOW, new String[]{
             "なし",
             "弓ダメージ +15%",
             "弓ダメージ +30%"
-    }, new int[]{0, 100, 220});
+    }, new int[]{0, 35, 80});
     
     private final String displayName;
     private final Material icon;

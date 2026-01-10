@@ -1,7 +1,11 @@
 package tensaimc.kingsline.king;
 
 import org.bukkit.ChatColor;
+import org.bukkit.Material;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -106,15 +110,17 @@ public class KingManager {
             return;
         }
         
-        // HP2倍 (Health Boost II = +4 hearts = +8 HP)
-        player.addPotionEffect(new PotionEffect(
-                PotionEffectType.HEALTH_BOOST, Integer.MAX_VALUE, 1, false, false), true);
+        // HP15ハート (30HP)
+        player.setMaxHealth(30.0);
+        player.setHealth(30.0);
         
-        // 防御バフ (Resistance I相当)
-        player.addPotionEffect(new PotionEffect(
-                PotionEffectType.DAMAGE_RESISTANCE, Integer.MAX_VALUE, 0, false, false), true);
-        
-        player.setHealth(player.getMaxHealth());
+        // キング専用装備: プロテクション1のダイヤチェストプレート
+        ItemStack chestplate = new ItemStack(Material.DIAMOND_CHESTPLATE);
+        ItemMeta meta = chestplate.getItemMeta();
+        meta.addEnchant(Enchantment.PROTECTION_ENVIRONMENTAL, 1, true);
+        meta.setDisplayName(ChatColor.LIGHT_PURPLE + "" + ChatColor.BOLD + "王のチェストプレート");
+        chestplate.setItemMeta(meta);
+        player.getInventory().setChestplate(chestplate);
     }
     
     /**
@@ -138,6 +144,7 @@ public class KingManager {
     
     /**
      * キングオーラを適用
+     * キングの周囲8マスにいるチームメイトにRegeneration IIを付与
      */
     private void applyKingAura(Team team, int radius) {
         KLPlayer king = getKing(team);
@@ -146,7 +153,14 @@ public class KingManager {
         }
         
         Player kingPlayer = king.getPlayer();
+        if (kingPlayer == null) {
+            return;
+        }
+        
         TeamManager tm = plugin.getTeamManager();
+        
+        // 半径8マス固定
+        int auraRadius = 8;
         
         for (KLPlayer klPlayer : tm.getTeamPlayers(plugin.getGameManager().getPlayers(), team)) {
             if (!klPlayer.isOnline() || !klPlayer.isAlive()) {
@@ -154,10 +168,26 @@ public class KingManager {
             }
             
             Player player = klPlayer.getPlayer();
-            if (player.getLocation().distance(kingPlayer.getLocation()) <= radius) {
-                // Speed I (40 ticks = 2秒、ループで維持)
+            if (player == null) {
+                continue;
+            }
+            
+            // キング本人は除外（オーラは味方のみ）
+            if (klPlayer.getUuid().equals(king.getUuid())) {
+                continue;
+            }
+            
+            // 同じワールドかチェック
+            if (!player.getWorld().equals(kingPlayer.getWorld())) {
+                continue;
+            }
+            
+            double distance = player.getLocation().distance(kingPlayer.getLocation());
+            
+            if (distance <= auraRadius) {
+                // Regeneration II (40 ticks = 2秒、ループで維持)
                 player.addPotionEffect(new PotionEffect(
-                        PotionEffectType.SPEED, 40, 0, false, false), true);
+                        PotionEffectType.REGENERATION, 40, 1, false, false), true);
             }
         }
     }
@@ -179,10 +209,6 @@ public class KingManager {
                 killerPlayer.sendMessage(ChatColor.GOLD + "+" + kingKillPoints + "pt (キングキル)");
             }
         }
-        
-        // ペナルティ
-        int penalty = plugin.getConfigManager().getScoreKingDeathPenalty();
-        gm.addScore(kingTeam, penalty);
         
         // 敵全員にStrengthバフ
         Team enemyTeam = kingTeam.getOpposite();
@@ -206,11 +232,7 @@ public class KingManager {
         gm.broadcast(ChatColor.RED + "" + ChatColor.BOLD + 
                 kingTeam.getColoredName() + " のキングが倒されました！");
         
-        // キングフラグを解除
-        king.setKing(false);
-        
-        // 次のキングをランダムで選出
-        selectNewKing(kingTeam);
+        // キングはゲーム中変わらない（死んでもキングのまま）
     }
     
     /**

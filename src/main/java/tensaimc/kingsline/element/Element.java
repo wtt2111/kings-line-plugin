@@ -9,16 +9,16 @@ import org.bukkit.Material;
 public enum Element {
     
     FIRE("Fire", "ファイア", ChatColor.RED, Material.BLAZE_POWDER,
-            "与ダメ+7%, 炎上付与"),
+            "与ダメ+20%, 炎上付与, 被ダメ+15%"),
     
     ICE("Ice", "アイス", ChatColor.AQUA, Material.SNOW_BALL,
-            "KB耐性, Slowness付与"),
+            "KB耐性50%, 移動-30%, Slow付与"),
     
     WIND("Wind", "ウィンド", ChatColor.WHITE, Material.FEATHER,
-            "Speed/Jump常時"),
+            "Speed常時, SP7HIT"),
     
     EARTH("Earth", "アース", ChatColor.GOLD, Material.CLAY_BALL,
-            "被ダメ-10%, KB耐性");
+            "被ダメ-30%, 15%無効化");
     
     private final String name;
     private final String japaneseName;

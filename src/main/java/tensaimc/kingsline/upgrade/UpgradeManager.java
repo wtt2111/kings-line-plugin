@@ -194,7 +194,7 @@ public class UpgradeManager {
         
         // 防具アップグレード
         int armorLevel = getLevel(team, TeamUpgrade.ARMOR);
-        applyArmorUpgrade(player, team, armorLevel);
+        applyArmorUpgrade(player, team, armorLevel, klPlayer.isKing());
         
         // 武器アップグレード
         int weaponLevel = getLevel(team, TeamUpgrade.WEAPON);
@@ -219,43 +219,46 @@ public class UpgradeManager {
     
     /**
      * 防具アップグレードを適用
+     * ※ヘルメットとチェストプレートは常に皮装備、レギンスとブーツのみアップグレード
+     * ※キングの場合はチェストプレートがダイヤ
      */
-    private void applyArmorUpgrade(Player player, Team team, int level) {
-        Material helmet, chestplate, leggings, boots;
+    private void applyArmorUpgrade(Player player, Team team, int level, boolean isKing) {
+        // ヘルメットは常に皮装備（チームカラー）
+        ItemStack leatherHelmet = new ItemStack(Material.LEATHER_HELMET);
+        setLeatherColor(leatherHelmet, team);
+        player.getInventory().setHelmet(leatherHelmet);
+        
+        // チェストプレート: キングはダイヤ、それ以外は皮
+        if (isKing) {
+            player.getInventory().setChestplate(new ItemStack(Material.DIAMOND_CHESTPLATE));
+        } else {
+            ItemStack leatherChest = new ItemStack(Material.LEATHER_CHESTPLATE);
+            setLeatherColor(leatherChest, team);
+            player.getInventory().setChestplate(leatherChest);
+        }
+        
+        // レギンスとブーツのみアップグレード対象
+        Material leggings, boots;
         
         switch (level) {
             case 1: // 鉄装備
-                helmet = Material.IRON_HELMET;
-                chestplate = Material.IRON_CHESTPLATE;
                 leggings = Material.IRON_LEGGINGS;
                 boots = Material.IRON_BOOTS;
                 break;
             case 2: // ダイヤ装備
-                helmet = Material.DIAMOND_HELMET;
-                chestplate = Material.DIAMOND_CHESTPLATE;
                 leggings = Material.DIAMOND_LEGGINGS;
                 boots = Material.DIAMOND_BOOTS;
                 break;
             default: // 皮装備
-                ItemStack leatherHelmet = new ItemStack(Material.LEATHER_HELMET);
-                ItemStack leatherChest = new ItemStack(Material.LEATHER_CHESTPLATE);
                 ItemStack leatherLegs = new ItemStack(Material.LEATHER_LEGGINGS);
                 ItemStack leatherBoots = new ItemStack(Material.LEATHER_BOOTS);
-                
-                setLeatherColor(leatherHelmet, team);
-                setLeatherColor(leatherChest, team);
                 setLeatherColor(leatherLegs, team);
                 setLeatherColor(leatherBoots, team);
-                
-                player.getInventory().setHelmet(leatherHelmet);
-                player.getInventory().setChestplate(leatherChest);
                 player.getInventory().setLeggings(leatherLegs);
                 player.getInventory().setBoots(leatherBoots);
                 return;
         }
         
-        player.getInventory().setHelmet(new ItemStack(helmet));
-        player.getInventory().setChestplate(new ItemStack(chestplate));
         player.getInventory().setLeggings(new ItemStack(leggings));
         player.getInventory().setBoots(new ItemStack(boots));
     }

@@ -1,5 +1,6 @@
 package tensaimc.kingsline.arena;
 
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
 import tensaimc.kingsline.player.Team;
@@ -51,6 +52,20 @@ public class Arena {
     
     public void setWorldName(String worldName) {
         this.worldName = worldName;
+    }
+    
+    /**
+     * ワールドを取得
+     */
+    public World getWorld() {
+        if (worldName != null) {
+            return Bukkit.getWorld(worldName);
+        }
+        // フォールバック：blueSpawnからワールドを取得
+        if (blueSpawn != null) {
+            return blueSpawn.getWorld();
+        }
+        return null;
     }
     
     // ========== Spawns ==========

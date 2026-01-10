@@ -78,7 +78,7 @@ public class ShardManager {
     }
     
     /**
-     * 各エリアにShardをスポーン
+     * 各エリアにShardをスポーン（スケール適用）
      */
     private void spawnShardsAtAreas() {
         GameManager gm = plugin.getGameManager();
@@ -88,7 +88,8 @@ public class ShardManager {
             return;
         }
         
-        int amount = plugin.getConfigManager().getShardSpawnAmount();
+        int baseAmount = plugin.getConfigManager().getShardSpawnAmount();
+        int amount = gm.getScaledShardAmount(baseAmount);
         
         // Bエリア
         Area areaB = arena.getAreaB();
@@ -181,18 +182,20 @@ public class ShardManager {
     }
     
     /**
-     * コア破壊時のShardドロップ
+     * コア破壊時のShardドロップ（スケール適用）
      */
     public void dropCoreShards(Location location) {
-        int amount = plugin.getConfigManager().getShardCoreDestroyDrop();
+        int baseAmount = plugin.getConfigManager().getShardCoreDestroyDrop();
+        int amount = plugin.getGameManager().getScaledShardAmount(baseAmount);
         spawnShard(location, amount);
     }
     
     /**
-     * キング死亡時のShardドロップ
+     * キング死亡時のShardドロップ（スケール適用）
      */
     public void dropKingDeathShards(Location location) {
-        int amount = plugin.getConfigManager().getShardKingDeathDrop();
+        int baseAmount = plugin.getConfigManager().getShardKingDeathDrop();
+        int amount = plugin.getGameManager().getScaledShardAmount(baseAmount);
         spawnShard(location, amount);
     }
     

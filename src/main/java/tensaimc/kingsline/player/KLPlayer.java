@@ -1,6 +1,7 @@
 package tensaimc.kingsline.player;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import tensaimc.kingsline.element.Element;
 
@@ -26,6 +27,7 @@ public class KLPlayer {
     // SPシステム
     private int spGauge;        // SP技ゲージ (0-10)
     private long spCooldownEnd; // SP技クールダウン終了時刻
+    private long silenceEnd;    // 沈黙状態終了時刻（SP使用不可）
     
     // キング
     private boolean isKing;
@@ -39,6 +41,9 @@ public class KLPlayer {
     private int deathsThisGame;
     private int shardDepositedThisGame;
     
+    // 死亡場所（リスポーン待機時間計算用）
+    private Location lastDeathLocation;
+    
     public KLPlayer(UUID uuid) {
         this.uuid = uuid;
         this.team = Team.NONE;
@@ -49,6 +54,7 @@ public class KLPlayer {
         this.luminaSaved = 0;
         this.spGauge = 0;
         this.spCooldownEnd = 0;
+        this.silenceEnd = 0;
         this.isKing = false;
         this.canRespawn = true;
         this.isAlive = true;
@@ -291,6 +297,30 @@ public class KLPlayer {
         this.spCooldownEnd = System.currentTimeMillis() + cooldownMillis;
     }
     
+    // ========== Silence（沈黙状態） ==========
+    
+    /**
+     * 沈黙状態を適用（SP技使用不可）
+     */
+    public void applySilence(long durationMillis) {
+        this.silenceEnd = System.currentTimeMillis() + durationMillis;
+    }
+    
+    /**
+     * 沈黙状態かどうか
+     */
+    public boolean isSilenced() {
+        return System.currentTimeMillis() < silenceEnd;
+    }
+    
+    /**
+     * 沈黙状態の残り時間
+     */
+    public long getSilenceRemaining() {
+        long remaining = silenceEnd - System.currentTimeMillis();
+        return Math.max(0, remaining);
+    }
+    
     // ========== King ==========
     
     public boolean isKing() {
@@ -317,6 +347,14 @@ public class KLPlayer {
     
     public void setAlive(boolean alive) {
         isAlive = alive;
+    }
+    
+    public Location getLastDeathLocation() {
+        return lastDeathLocation;
+    }
+    
+    public void setLastDeathLocation(Location loc) {
+        this.lastDeathLocation = loc;
     }
     
     // ========== Statistics ==========
@@ -365,6 +403,7 @@ public class KLPlayer {
         this.luminaSaved = 0;
         this.spGauge = 0;
         this.spCooldownEnd = 0;
+        this.silenceEnd = 0;
         this.isKing = false;
         this.canRespawn = true;
         this.isAlive = true;

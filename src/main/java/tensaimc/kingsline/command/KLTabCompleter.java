@@ -24,8 +24,10 @@ public class KLTabCompleter implements TabCompleter {
     
     private static final List<String> ADMIN_COMMANDS = Arrays.asList(
             "setspawn", "setcore", "setnpc", "setarea", "setlobby", 
-            "save", "createarena", "setarena"
+            "save", "createarena", "setarena", "debug"
     );
+    
+    private static final List<String> DEBUG_TYPES = Arrays.asList("shard", "lumina", "score");
     
     private static final List<String> PARTY_ACTIONS = Arrays.asList(
             "invite", "accept", "deny", "leave", "list", "disband"
@@ -83,6 +85,17 @@ public class KLTabCompleter implements TabCompleter {
             case "setarena":
                 if (args.length == 2) {
                     return filter(new ArrayList<>(plugin.getArenaConfig().getArenaNames()), args[1]);
+                }
+                break;
+                
+            case "debug":
+                if (sender.isOp()) {
+                    if (args.length == 2) {
+                        return filter(DEBUG_TYPES, args[1]);
+                    }
+                    if (args.length == 3 && args[1].equalsIgnoreCase("score")) {
+                        return filter(TEAMS, args[2]);
+                    }
                 }
                 break;
         }

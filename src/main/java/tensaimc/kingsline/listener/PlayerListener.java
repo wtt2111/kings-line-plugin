@@ -3,7 +3,7 @@ package tensaimc.kingsline.listener;
 import org.bukkit.ChatColor;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
-import org.bukkit.Material;
+import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -13,15 +13,15 @@ import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
-import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.LeatherArmorMeta;
 import org.bukkit.scheduler.BukkitRunnable;
 import tensaimc.kingsline.KingsLine;
+import tensaimc.kingsline.arena.Arena;
 import tensaimc.kingsline.game.GameManager;
 import tensaimc.kingsline.game.GameState;
+import tensaimc.kingsline.item.SpecialItems;
 import tensaimc.kingsline.player.KLPlayer;
 import tensaimc.kingsline.player.Team;
-import tensaimc.kingsline.util.ActionBarUtil;
+import tensaimc.kingsline.util.TitleUtil;
 
 /**
  * プレイヤー関連のイベントリスナー
@@ -78,8 +78,22 @@ public class PlayerListener implements Listener {
             return;
         }
         
+        // リバイバルチャーム: 死亡を免れる
+        if (SpecialItems.RevivalCharm.tryRevive(plugin, player, klPlayer)) {
+            // インベントリはSpecialItemsで保存済み、ドロップをクリア
+            event.getDrops().clear();
+            event.setDroppedExp(0);
+            event.setDeathMessage(null);
+            
+            // 死亡位置を保存（リスポーン時にテレポートするため）
+            klPlayer.setLastDeathLocation(player.getLocation());
+            
+            return; // 通常の死亡処理をスキップ
+        }
+        
         klPlayer.setAlive(false);
         klPlayer.addDeath();
+        klPlayer.setLastDeathLocation(player.getLocation());
         
         // キラー処理
         Player killer = player.getKiller();
@@ -107,6 +121,10 @@ public class PlayerListener implements Listener {
         plugin.getShardManager().dropPlayerShards(klPlayer, deathLoc);
         plugin.getLuminaManager().dropPlayerLumina(klPlayer, deathLoc);
         
+        // アイテムドロップ禁止（死んだ人はアイテムを失うが、地面にはドロップしない）
+        event.getDrops().clear();
+        event.setDroppedExp(0);
+        
         // デスメッセージをカスタマイズ
         String deathMessage = klPlayer.getTeam().getChatColor() + player.getName();
         if (killer != null) {
@@ -133,6 +151,38 @@ public class PlayerListener implements Listener {
             return;
         }
         
+        // リバイバルチャームで復活した場合
+        if (SpecialItems.RevivalCharm.isReviving(player.getUniqueId())) {
+            // 死亡位置でその場復活
+            Location deathLoc = klPlayer.getLastDeathLocation();
+            if (deathLoc != null) {
+                event.setRespawnLocation(deathLoc);
+            }
+            
+            // 遅延でHP40%復活とインベントリ復元
+            new BukkitRunnable() {
+                @Override
+                public void run() {
+                    if (player.isOnline()) {
+                        // インベントリ復元
+                        SpecialItems.RevivalCharm.restoreInventory(player);
+                        
+                        // HP40%で復活
+                        player.setHealth(player.getMaxHealth() * 0.4);
+                        player.setFoodLevel(20);
+                        
+                        // 復活タイトル
+                        TitleUtil.sendTitle(player, 
+                                ChatColor.GOLD + "✟ REVIVED!",
+                                ChatColor.YELLOW + "リバイバルチャームで死を免れた",
+                                5, 30, 10);
+                    }
+                }
+            }.runTaskLater(plugin, 1L);
+            
+            return; // 通常のリスポーン処理をスキップ
+        }
+        
         // リスポーン可能かチェック
         if (!klPlayer.canRespawn()) {
             player.sendMessage(ChatColor.RED + "リスポーンが無効化されています。観戦モードになります。");
@@ -149,34 +199,145 @@ public class PlayerListener implements Listener {
             return;
         }
         
+        // リスポーン待機時間を計算（コア周辺10ブロック以内なら15秒、それ以外は5秒）
+        int respawnDelay = calculateRespawnDelay(klPlayer, gm);
+        
         // リスポーン地点をチームスポーンに
+        Location respawnLoc = null;
         if (gm.getCurrentArena() != null) {
-            Location spawn = gm.getCurrentArena().getSpawn(klPlayer.getTeam());
-            if (spawn != null) {
-                event.setRespawnLocation(spawn);
+            respawnLoc = gm.getCurrentArena().getSpawn(klPlayer.getTeam());
+            if (respawnLoc != null) {
+                event.setRespawnLocation(respawnLoc);
             }
         }
         
-        // 遅延でリスポーン処理
+        final Location finalRespawnLoc = respawnLoc;
+        
+        // スペクテイターモードにして待機
         new BukkitRunnable() {
             @Override
             public void run() {
                 if (player.isOnline()) {
-                    klPlayer.setAlive(true);
+                    player.setGameMode(GameMode.SPECTATOR);
                     
-                    // 装備を再付与
-                    giveRespawnGear(player, klPlayer.getTeam());
-                    
-                    // アップグレード効果を再適用
-                    plugin.getUpgradeManager().applyUpgradeToPlayer(klPlayer);
+                    // カウントダウン開始
+                    startRespawnCountdown(player, klPlayer, respawnDelay, finalRespawnLoc);
                 }
             }
         }.runTaskLater(plugin, 1L);
     }
     
+    /**
+     * リスポーン待機時間を計算
+     */
+    private int calculateRespawnDelay(KLPlayer klPlayer, GameManager gm) {
+        Arena arena = gm.getCurrentArena();
+        if (arena == null) {
+            return 5; // デフォルト5秒
+        }
+        
+        // 死亡場所の記録（直前のLocation）
+        Location deathLoc = klPlayer.getLastDeathLocation();
+        if (deathLoc == null) {
+            return 5;
+        }
+        
+        // 自チームのコア位置を取得
+        Location coreLoc = (klPlayer.getTeam() == Team.BLUE) ? 
+                arena.getBlueCore() : arena.getRedCore();
+        
+        if (coreLoc != null && deathLoc.getWorld().equals(coreLoc.getWorld())) {
+            double distance = deathLoc.distance(coreLoc);
+            if (distance <= 10) {
+                return 15; // コア周辺10ブロック以内なら15秒
+            }
+        }
+        
+        return 5; // 通常は5秒
+    }
+    
+    /**
+     * リスポーンカウントダウン
+     */
+    private void startRespawnCountdown(Player player, KLPlayer klPlayer, int delay, Location respawnLoc) {
+        new BukkitRunnable() {
+            int countdown = delay;
+            
+            @Override
+            public void run() {
+                if (!player.isOnline()) {
+                    cancel();
+                    return;
+                }
+                
+                GameManager gm = plugin.getGameManager();
+                if (!gm.isState(GameState.RUNNING)) {
+                    cancel();
+                    return;
+                }
+                
+                if (countdown <= 0) {
+                    // リスポーン実行
+                    executeRespawn(player, klPlayer, respawnLoc);
+                    cancel();
+                    return;
+                }
+                
+                // カウントダウン表示
+                TitleUtil.sendTitle(player, 
+                        ChatColor.RED + "復活まで " + countdown + " 秒",
+                        delay >= 15 ? ChatColor.YELLOW + "（コア防衛エリア内で死亡）" : "",
+                        0, 25, 0);
+                
+                if (countdown <= 3) {
+                    player.playSound(player.getLocation(), Sound.NOTE_PLING, 1.0f, 1.0f);
+                }
+                
+                countdown--;
+            }
+        }.runTaskTimer(plugin, 0L, 20L);
+    }
+    
+    /**
+     * リスポーン実行
+     */
+    private void executeRespawn(Player player, KLPlayer klPlayer, Location respawnLoc) {
+        if (!player.isOnline()) return;
+        
+        // サバイバルモードに
+        player.setGameMode(GameMode.SURVIVAL);
+        
+        // テレポート
+        if (respawnLoc != null) {
+            player.teleport(respawnLoc);
+        }
+        
+        // 状態回復
+        player.setHealth(player.getMaxHealth());
+        player.setFoodLevel(20);
+        
+        klPlayer.setAlive(true);
+        
+        // 装備を再付与（GameManagerの共通メソッドを使用）
+        plugin.getGameManager().giveGear(player, klPlayer.getTeam());
+        
+        // アップグレード効果を再適用
+        plugin.getUpgradeManager().applyUpgradeToPlayer(klPlayer);
+        
+        // エレメントのパッシブ効果を再適用
+        plugin.getElementManager().applyPassiveEffects(klPlayer);
+        
+        // 通知
+        TitleUtil.sendTitle(player, 
+                ChatColor.GREEN + "復活！",
+                "",
+                5, 20, 5);
+        player.playSound(player.getLocation(), Sound.LEVEL_UP, 1.0f, 1.0f);
+    }
+    
     @EventHandler(priority = EventPriority.LOWEST)
     public void onPlayerChat(AsyncPlayerChatEvent event) {
-        Player player = event.getPlayer();
+        final Player player = event.getPlayer();
         String message = event.getMessage();
         GameManager gm = plugin.getGameManager();
         
@@ -184,8 +345,8 @@ public class PlayerListener implements Listener {
         if (message.equalsIgnoreCase("!king")) {
             event.setCancelled(true);
             
-            if (!gm.isVotingPhase()) {
-                player.sendMessage(ChatColor.RED + "投票フェーズ中のみ使用できます。");
+            if (!gm.isState(GameState.STARTING)) {
+                player.sendMessage(ChatColor.RED + "準備フェーズ中のみ使用できます。");
                 return;
             }
             
@@ -195,41 +356,18 @@ public class PlayerListener implements Listener {
                 return;
             }
             
-            // 立候補
-            gm.addKingCandidate(klPlayer);
-            player.sendMessage(ChatColor.GOLD + "キングに立候補しました！");
+            // キング投票フェーズ中のみ立候補可能
+            if (gm.isVotingPhase()) {
+                // 立候補
+                gm.addKingCandidate(klPlayer);
+                // 立候補後、投票GUIに登録
+                plugin.getKingVoteGUI().addCandidate(klPlayer.getUuid(), klPlayer.getTeam());
+                player.sendMessage(ChatColor.GOLD + "キングに立候補しました！");
+                player.sendMessage(ChatColor.GRAY + "ジュークボックスを右クリックで投票GUIを開けます。");
+            } else {
+                // エレメント選択フェーズ中は使用不可
+                player.sendMessage(ChatColor.RED + "キング投票フェーズになったら !king で立候補できます。");
+            }
         }
-    }
-    
-    /**
-     * リスポーン時の装備付与
-     */
-    private void giveRespawnGear(Player player, Team team) {
-        player.getInventory().clear();
-        
-        // 皮装備（チームカラー）
-        ItemStack helmet = createColoredArmor(Material.LEATHER_HELMET, team);
-        ItemStack chestplate = createColoredArmor(Material.LEATHER_CHESTPLATE, team);
-        ItemStack leggings = createColoredArmor(Material.LEATHER_LEGGINGS, team);
-        ItemStack boots = createColoredArmor(Material.LEATHER_BOOTS, team);
-        
-        player.getInventory().setHelmet(helmet);
-        player.getInventory().setChestplate(chestplate);
-        player.getInventory().setLeggings(leggings);
-        player.getInventory().setBoots(boots);
-        
-        // 木の剣（初期）
-        player.getInventory().addItem(new ItemStack(Material.WOOD_SWORD));
-        
-        // 食料
-        player.getInventory().addItem(new ItemStack(Material.COOKED_BEEF, 16));
-    }
-    
-    private ItemStack createColoredArmor(Material material, Team team) {
-        ItemStack item = new ItemStack(material);
-        LeatherArmorMeta meta = (LeatherArmorMeta) item.getItemMeta();
-        meta.setColor(team.getArmorColor());
-        item.setItemMeta(meta);
-        return item;
     }
 }

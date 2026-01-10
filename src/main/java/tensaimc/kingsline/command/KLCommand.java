@@ -11,7 +11,9 @@ import tensaimc.kingsline.arena.Arena;
 import tensaimc.kingsline.config.ArenaConfig;
 import tensaimc.kingsline.game.GameManager;
 import tensaimc.kingsline.game.GameState;
+import tensaimc.kingsline.player.KLPlayer;
 import tensaimc.kingsline.player.PartyManager;
+import tensaimc.kingsline.player.Team;
 
 import java.util.List;
 
@@ -61,7 +63,9 @@ public class KLCommand implements CommandExecutor {
             case "setarena":
                 return handleSetArena(sender, args);
             case "info":
-                return handleInfo(sender);
+                return handleInfo(sender, args);
+            case "debug":
+                return handleDebug(sender, args);
             default:
                 sendHelp(sender);
                 return true;
@@ -85,6 +89,11 @@ public class KLCommand implements CommandExecutor {
             sender.sendMessage(ChatColor.YELLOW + "/kl createarena <name>" + ChatColor.GRAY + " - アリーナ作成");
             sender.sendMessage(ChatColor.YELLOW + "/kl setarena <name>" + ChatColor.GRAY + " - アリーナ切替");
             sender.sendMessage(ChatColor.YELLOW + "/kl info" + ChatColor.GRAY + " - ゲーム情報");
+            sender.sendMessage(ChatColor.YELLOW + "/kl info arena" + ChatColor.GRAY + " - アリーナ詳細設定");
+            sender.sendMessage(ChatColor.LIGHT_PURPLE + "--- デバッグコマンド (OP専用) ---");
+            sender.sendMessage(ChatColor.YELLOW + "/kl debug shard <amount>" + ChatColor.GRAY + " - 所持シャード設定");
+            sender.sendMessage(ChatColor.YELLOW + "/kl debug lumina <amount>" + ChatColor.GRAY + " - 所持ルミナ設定");
+            sender.sendMessage(ChatColor.YELLOW + "/kl debug score <blue|red> <amount>" + ChatColor.GRAY + " - チームスコア設定");
         }
     }
     
@@ -409,7 +418,13 @@ public class KLCommand implements CommandExecutor {
         return true;
     }
     
-    private boolean handleInfo(CommandSender sender) {
+    private boolean handleInfo(CommandSender sender, String[] args) {
+        // /kl info arena - アリーナ詳細情報
+        if (args.length >= 2 && args[1].equalsIgnoreCase("arena")) {
+            return handleInfoArena(sender);
+        }
+        
+        // 通常のゲーム情報
         GameManager gm = plugin.getGameManager();
         Arena arena = plugin.getArenaConfig().getCurrentArena();
         
@@ -428,7 +443,95 @@ public class KLCommand implements CommandExecutor {
             sender.sendMessage(ChatColor.YELLOW + "アリーナ: " + ChatColor.RED + "未設定");
         }
         
+        sender.sendMessage(ChatColor.GRAY + "詳細情報: /kl info arena");
+        
         return true;
+    }
+    
+    private boolean handleInfoArena(CommandSender sender) {
+        Arena arena = plugin.getArenaConfig().getCurrentArena();
+        
+        sender.sendMessage(ChatColor.GOLD + "===== アリーナ設定情報 =====");
+        
+        if (arena == null) {
+            sender.sendMessage(ChatColor.RED + "アリーナが設定されていません。");
+            sender.sendMessage(ChatColor.GRAY + "/kl createarena <name> で作成してください。");
+            return true;
+        }
+        
+        sender.sendMessage(ChatColor.YELLOW + "アリーナ名: " + ChatColor.WHITE + arena.getName());
+        sender.sendMessage(ChatColor.YELLOW + "ワールド: " + ChatColor.WHITE + 
+                (arena.getWorldName() != null ? arena.getWorldName() : ChatColor.RED + "未設定"));
+        sender.sendMessage(ChatColor.YELLOW + "状態: " + 
+                (arena.isValid() ? ChatColor.GREEN + "有効" : ChatColor.RED + "無効（設定不足）"));
+        
+        sender.sendMessage("");
+        sender.sendMessage(ChatColor.BLUE + "【BLUEチーム】");
+        sender.sendMessage(ChatColor.GRAY + "  スポーン: " + formatLocation(arena.getBlueSpawn()));
+        sender.sendMessage(ChatColor.GRAY + "  コア: " + formatLocation(arena.getBlueCore()));
+        sender.sendMessage(ChatColor.GRAY + "  NPC: " + formatLocation(arena.getBlueNPC()));
+        
+        sender.sendMessage(ChatColor.RED + "【REDチーム】");
+        sender.sendMessage(ChatColor.GRAY + "  スポーン: " + formatLocation(arena.getRedSpawn()));
+        sender.sendMessage(ChatColor.GRAY + "  コア: " + formatLocation(arena.getRedCore()));
+        sender.sendMessage(ChatColor.GRAY + "  NPC: " + formatLocation(arena.getRedNPC()));
+        
+        sender.sendMessage("");
+        sender.sendMessage(ChatColor.YELLOW + "【エリア設定】");
+        
+        // エリアA
+        tensaimc.kingsline.arena.Area areaA = arena.getAreaA();
+        if (areaA != null && areaA.isValid()) {
+            sender.sendMessage(ChatColor.GRAY + "  エリアA: " + ChatColor.GREEN + "設定済み" + 
+                    ChatColor.GRAY + " (" + formatAreaRange(areaA) + ")");
+        } else {
+            sender.sendMessage(ChatColor.GRAY + "  エリアA: " + ChatColor.RED + "未設定");
+        }
+        
+        // エリアB（必須）
+        tensaimc.kingsline.arena.Area areaB = arena.getAreaB();
+        if (areaB != null && areaB.isValid()) {
+            sender.sendMessage(ChatColor.GRAY + "  エリアB: " + ChatColor.GREEN + "設定済み" + 
+                    ChatColor.GRAY + " (" + formatAreaRange(areaB) + ")");
+        } else {
+            sender.sendMessage(ChatColor.GRAY + "  エリアB: " + ChatColor.RED + "未設定 " + 
+                    ChatColor.DARK_RED + "（必須！）");
+        }
+        
+        // エリアC
+        tensaimc.kingsline.arena.Area areaC = arena.getAreaC();
+        if (areaC != null && areaC.isValid()) {
+            sender.sendMessage(ChatColor.GRAY + "  エリアC: " + ChatColor.GREEN + "設定済み" + 
+                    ChatColor.GRAY + " (" + formatAreaRange(areaC) + ")");
+        } else {
+            sender.sendMessage(ChatColor.GRAY + "  エリアC: " + ChatColor.RED + "未設定");
+        }
+        
+        // ロビー
+        sender.sendMessage("");
+        sender.sendMessage(ChatColor.YELLOW + "【その他】");
+        sender.sendMessage(ChatColor.GRAY + "  ロビー: " + formatLocation(arena.getLobby()));
+        
+        return true;
+    }
+    
+    private String formatLocation(Location loc) {
+        if (loc == null) {
+            return ChatColor.RED + "未設定";
+        }
+        return ChatColor.WHITE + String.format("(%.1f, %.1f, %.1f)", 
+                loc.getX(), loc.getY(), loc.getZ());
+    }
+    
+    private String formatAreaRange(tensaimc.kingsline.arena.Area area) {
+        if (area == null || area.getPos1() == null || area.getPos2() == null) {
+            return "不明";
+        }
+        Location p1 = area.getPos1();
+        Location p2 = area.getPos2();
+        return String.format("%d,%d,%d ~ %d,%d,%d",
+                p1.getBlockX(), p1.getBlockY(), p1.getBlockZ(),
+                p2.getBlockX(), p2.getBlockY(), p2.getBlockZ());
     }
     
     // ========== Helpers ==========
@@ -453,5 +556,135 @@ public class KLCommand implements CommandExecutor {
             ac.setCurrentArena("default");
         }
         return arena;
+    }
+    
+    // ========== Debug Commands (OP Only) ==========
+    
+    private boolean handleDebug(CommandSender sender, String[] args) {
+        // OP権限チェック
+        if (!(sender instanceof Player)) {
+            sender.sendMessage(ChatColor.RED + "プレイヤーのみ使用可能です。");
+            return true;
+        }
+        
+        Player player = (Player) sender;
+        if (!player.isOp()) {
+            sender.sendMessage(ChatColor.RED + "OP権限が必要です。");
+            return true;
+        }
+        
+        if (args.length < 2) {
+            sender.sendMessage(ChatColor.LIGHT_PURPLE + "===== デバッグコマンド =====");
+            sender.sendMessage(ChatColor.YELLOW + "/kl debug shard <amount>" + ChatColor.GRAY + " - 所持シャードを設定");
+            sender.sendMessage(ChatColor.YELLOW + "/kl debug lumina <amount>" + ChatColor.GRAY + " - 所持ルミナを設定");
+            sender.sendMessage(ChatColor.YELLOW + "/kl debug score <blue|red> <amount>" + ChatColor.GRAY + " - チームスコアを設定");
+            return true;
+        }
+        
+        String type = args[1].toLowerCase();
+        
+        switch (type) {
+            case "shard":
+                return handleDebugShard(player, args);
+            case "lumina":
+                return handleDebugLumina(player, args);
+            case "score":
+                return handleDebugScore(player, args);
+            default:
+                sender.sendMessage(ChatColor.RED + "不明なサブコマンド: " + type);
+                sender.sendMessage(ChatColor.GRAY + "使用可能: shard, lumina, score");
+                return true;
+        }
+    }
+    
+    private boolean handleDebugShard(Player player, String[] args) {
+        if (args.length < 3) {
+            player.sendMessage(ChatColor.RED + "使用法: /kl debug shard <amount>");
+            return true;
+        }
+        
+        int amount;
+        try {
+            amount = Integer.parseInt(args[2]);
+        } catch (NumberFormatException e) {
+            player.sendMessage(ChatColor.RED + "無効な数値です。");
+            return true;
+        }
+        
+        GameManager gm = plugin.getGameManager();
+        KLPlayer klPlayer = gm.getPlayer(player);
+        
+        if (klPlayer == null) {
+            player.sendMessage(ChatColor.RED + "ゲームに参加していません。");
+            return true;
+        }
+        
+        klPlayer.setShardCarrying(amount);
+        player.sendMessage(ChatColor.GREEN + "所持シャードを " + ChatColor.AQUA + amount + ChatColor.GREEN + " に設定しました。");
+        
+        return true;
+    }
+    
+    private boolean handleDebugLumina(Player player, String[] args) {
+        if (args.length < 3) {
+            player.sendMessage(ChatColor.RED + "使用法: /kl debug lumina <amount>");
+            return true;
+        }
+        
+        int amount;
+        try {
+            amount = Integer.parseInt(args[2]);
+        } catch (NumberFormatException e) {
+            player.sendMessage(ChatColor.RED + "無効な数値です。");
+            return true;
+        }
+        
+        GameManager gm = plugin.getGameManager();
+        KLPlayer klPlayer = gm.getPlayer(player);
+        
+        if (klPlayer == null) {
+            player.sendMessage(ChatColor.RED + "ゲームに参加していません。");
+            return true;
+        }
+        
+        klPlayer.setLuminaCarrying(amount);
+        player.sendMessage(ChatColor.GREEN + "所持ルミナを " + ChatColor.LIGHT_PURPLE + amount + ChatColor.GREEN + " に設定しました。");
+        
+        return true;
+    }
+    
+    private boolean handleDebugScore(Player player, String[] args) {
+        if (args.length < 4) {
+            player.sendMessage(ChatColor.RED + "使用法: /kl debug score <blue|red> <amount>");
+            return true;
+        }
+        
+        String teamName = args[2].toLowerCase();
+        int amount;
+        try {
+            amount = Integer.parseInt(args[3]);
+        } catch (NumberFormatException e) {
+            player.sendMessage(ChatColor.RED + "無効な数値です。");
+            return true;
+        }
+        
+        GameManager gm = plugin.getGameManager();
+        
+        Team team;
+        if (teamName.equals("blue")) {
+            team = Team.BLUE;
+        } else if (teamName.equals("red")) {
+            team = Team.RED;
+        } else {
+            player.sendMessage(ChatColor.RED + "blue または red を指定してください。");
+            return true;
+        }
+        
+        // スコアを直接設定するメソッドを呼ぶ
+        gm.setScore(team, amount);
+        player.sendMessage(ChatColor.GREEN + team.getColoredName() + ChatColor.GREEN + " のスコアを " + 
+                ChatColor.WHITE + amount + ChatColor.GREEN + " に設定しました。");
+        
+        return true;
     }
 }

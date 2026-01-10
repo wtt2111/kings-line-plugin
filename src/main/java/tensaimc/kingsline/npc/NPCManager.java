@@ -58,9 +58,6 @@ public class NPCManager {
         villager.setCustomName(team.getChatColor() + "" + ChatColor.BOLD + "ショップ / 銀行");
         villager.setCustomNameVisible(true);
         
-        // 1.8.8対応：移動を防ぐためにノーAI的な対応
-        // 実際のノーAI設定はNBTを使うか、動かないように定期的にテレポートする
-        
         // 職業設定
         try {
             villager.setProfession(Villager.Profession.LIBRARIAN);
@@ -68,9 +65,37 @@ public class NPCManager {
             // バージョンによっては異なる
         }
         
+        // 1.8.8対応：NMSでNoAIを設定
+        setNoAI(villager);
+        
         spawnedNPCs.add(villager.getUniqueId());
         
         plugin.getLogger().info(team.getDisplayName() + " NPC をスポーンしました");
+    }
+    
+    /**
+     * NMSを使用してNoAIを設定（1.8.8対応）
+     */
+    private void setNoAI(Entity entity) {
+        try {
+            Object nmsEntity = entity.getClass().getMethod("getHandle").invoke(entity);
+            
+            // NBTTagCompoundを取得または作成
+            Class<?> nbtClass = Class.forName("net.minecraft.server.v1_8_R3.NBTTagCompound");
+            Object nbtTag = nbtClass.newInstance();
+            
+            // エンティティのNBTを書き込み
+            nmsEntity.getClass().getMethod("c", nbtClass).invoke(nmsEntity, nbtTag);
+            
+            // NoAI=1を設定
+            nbtClass.getMethod("setInt", String.class, int.class).invoke(nbtTag, "NoAI", 1);
+            
+            // NBTをエンティティに適用
+            nmsEntity.getClass().getMethod("f", nbtClass).invoke(nmsEntity, nbtTag);
+            
+        } catch (Exception e) {
+            plugin.getLogger().warning("NoAI設定に失敗: " + e.getMessage());
+        }
     }
     
     /**
@@ -89,6 +114,22 @@ public class NPCManager {
             }
         }
         spawnedNPCs.clear();
+    }
+    
+    /**
+     * アリーナワールド内の全ての村人を削除（ゲーム開始前のクリーンアップ）
+     */
+    public void cleanupVillagers(World world) {
+        if (world == null) {
+            return;
+        }
+        
+        for (Entity entity : world.getEntities()) {
+            if (entity instanceof Villager) {
+                entity.remove();
+            }
+        }
+        plugin.getLogger().info("ワールド内の村人をクリーンアップしました");
     }
     
     /**

@@ -35,7 +35,8 @@ public class GUIManager {
         ELEMENT_SELECT,
         SHOP,
         UPGRADE,
-        KING_VOTE
+        KING_VOTE,
+        NPC_MENU
     }
     
     /**

@@ -68,11 +68,7 @@ public class NPCListener implements Listener {
             plugin.getLuminaManager().onReturnToBase(klPlayer);
         }
         
-        // ショップ/アップグレードGUIを開く（スニークでアップグレード）
-        if (player.isSneaking()) {
-            plugin.getUpgradeGUI().open(player);
-        } else {
-            plugin.getShopGUI().open(player);
-        }
+        // 拠点メニューGUIを開く
+        plugin.getNPCMenuGUI().open(player);
     }
 }

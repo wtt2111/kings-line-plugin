@@ -80,6 +80,7 @@ public class Area {
     
     /**
      * 指定された座標がエリア内かどうかを判定
+     * Y座標が同じ場合は全Y座標を許可（2D判定）
      */
     public boolean contains(Location loc) {
         if (!isValid() || loc == null) {
@@ -98,9 +99,22 @@ public class Area {
         double minZ = Math.min(pos1.getZ(), pos2.getZ());
         double maxZ = Math.max(pos1.getZ(), pos2.getZ());
         
-        return loc.getX() >= minX && loc.getX() <= maxX
-                && loc.getY() >= minY && loc.getY() <= maxY
+        // X, Z座標のチェック
+        boolean inXZ = loc.getX() >= minX && loc.getX() <= maxX
                 && loc.getZ() >= minZ && loc.getZ() <= maxZ;
+        
+        if (!inXZ) {
+            return false;
+        }
+        
+        // Y座標が同じ（または近い）場合は2D判定（Y座標を無視）
+        // これにより、地面の高さだけ指定すれば全Y座標でエリア判定できる
+        if (Math.abs(maxY - minY) < 2.0) {
+            return true; // Y座標を無視
+        }
+        
+        // Y座標も考慮した3D判定
+        return loc.getY() >= minY && loc.getY() <= maxY;
     }
     
     /**

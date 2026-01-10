@@ -35,9 +35,6 @@ score:
   # キングキル
   king-kill: 20
   
-  # キングアシスト
-  king-assist: 5
-  
   # キング死亡ペナルティ (倒されたチーム)
   king-death-penalty: -50
   
@@ -71,12 +68,6 @@ lumina:
 
 # キング設定
 king:
-  # 投票フェーズ: 立候補受付時間 (秒)
-  candidacy-duration: 15
-  
-  # 投票フェーズ: 投票時間 (秒)
-  vote-duration: 15
-  
   # オーラの範囲 (ブロック)
   aura-radius: 8
   
@@ -85,134 +76,11 @@ king:
 
 # エレメント設定
 element:
-  # エレメント選択の制限時間 (秒)
-  selection-duration: 20
-  
   # SP技のクールダウン (秒)
   sp-cooldown: 15
   
   # SP技に必要なヒット数
   sp-required-hits: 10
-  
-  # Fire
-  fire:
-    damage-bonus: 0.07        # +7%
-    damage-taken-bonus: 0.05  # +5% (デメリット)
-    burn-chance: 0.10         # 10%
-    burn-duration: 20         # 1秒 (tick)
-    # Overheat (SP技)
-    overheat-duration: 100    # 5秒 (tick)
-    overheat-damage-bonus: 0.20
-    overheat-burn-duration: 40
-    overheat-damage-taken: 0.10
-  
-  # Ice
-  ice:
-    speed-penalty: 0.05       # -5%
-    knockback-resist: 0.20    # -20% (エリア内)
-    slow-chance: 0.20         # 20%
-    slow-duration: 20         # 1秒 (tick)
-    # Ice Age (SP技)
-    ice-age-radius: 6
-    ice-age-max-targets: 2
-    ice-age-freeze-duration: 30  # 1.5秒 (tick)
-  
-  # Wind
-  wind:
-    damage-taken-bonus: 0.10  # +10% (デメリット)
-    # 常時Speed I, Jump Boost I
-    # Gale Step (SP技)
-    gale-step-range: 8
-    gale-step-speed-duration: 80  # 4秒 (tick)
-    gale-step-knockback-bonus: 0.30
-  
-  # Earth
-  earth:
-    damage-resist: 0.10       # -10%
-    knockback-resist: 0.30    # -30%
-    speed-penalty: 0.05       # -5%
-    # Bulwark (SP技)
-    bulwark-duration: 100     # 5秒 (tick)
-    bulwark-damage-resist: 0.20
-    bulwark-speed-penalty: 0.20
-
-# アップグレード設定
-upgrade:
-  # 攻撃ライン
-  attack:
-    level1:
-      cost: 30
-      effect: "sharpness:1"
-    level2:
-      cost: 60
-      effect: "sharpness:2"
-    level3:
-      cost: 90
-      effect: "damage_bonus:0.05"
-  
-  # 防御ライン
-  defense:
-    level1:
-      cost: 30
-      effect: "protection:1"
-    level2:
-      cost: 60
-      effect: "protection:2"
-    level3:
-      cost: 90
-      effect: "damage_resist:0.05"
-  
-  # HPライン
-  health:
-    level1:
-      cost: 40
-      effect: "health_boost:1"
-    level2:
-      cost: 80
-      effect: "health_boost:2"
-
-# ショップ設定 (Lumina消費)
-shop:
-  items:
-    speed_potion:
-      cost: 5
-      material: POTION
-      potion-type: SPEED
-      display-name: "&bスピードポーション"
-    
-    regen_potion:
-      cost: 8
-      material: POTION
-      potion-type: REGEN
-      display-name: "&d再生のポーション"
-    
-    ender_pearl:
-      cost: 10
-      material: ENDER_PEARL
-      amount: 1
-      display-name: "&5エンダーパール"
-    
-    golden_apple:
-      cost: 15
-      material: GOLDEN_APPLE
-      amount: 1
-      display-name: "&6金のリンゴ"
-
-# 初期装備
-starting-gear:
-  helmet:
-    material: LEATHER_HELMET
-  chestplate:
-    material: LEATHER_CHESTPLATE
-  leggings:
-    material: LEATHER_LEGGINGS
-  boots:
-    material: LEATHER_BOOTS
-  weapon:
-    material: STONE_SWORD
-  food:
-    material: COOKED_BEEF
-    amount: 16
 
 # データベース
 database:
@@ -224,7 +92,7 @@ database:
 
 ## arenas.yml
 
-アリーナ (マップ) の設定を管理します。
+アリーナ（マップ）の設定を管理します。
 
 ```yaml
 # ========================================
@@ -238,7 +106,7 @@ current-arena: "castle"
 arenas:
   castle:
     # ワールド名
-    world: "kingsline_castle"
+    world: "world"
     
     # チームスポーン位置
     spawns:
@@ -325,85 +193,66 @@ arenas:
           y: 65.0
           z: 100.5
     
-    # ロビー位置 (ゲーム終了後のテレポート先、オプション)
+    # ロビー位置 (ゲーム終了後のテレポート先)
     lobby:
       x: 0.5
       y: 65.0
       z: 0.5
       yaw: 0.0
       pitch: 0.0
-
-  # 別のアリーナ例
-  desert:
-    world: "kingsline_desert"
-    spawns:
-      blue:
-        x: 0.5
-        y: 70.0
-        z: -100.5
-      red:
-        x: 0.5
-        y: 70.0
-        z: 100.5
-    # ... 以下同様
 ```
 
 ---
 
-## messages.yml
+## チームアップグレード設定
 
-メッセージを管理します（将来の多言語対応用）。
+現在はコード内で定義されています（`TeamUpgrade.java`）。
 
-```yaml
-# ========================================
-# King's Line - Messages
-# ========================================
+| アップグレード | Tier 1 | Tier 2 | Tier 3 |
+|---------------|--------|--------|--------|
+| 防具 | 鉄 (100) | ダイヤ (250) | - |
+| 武器 | 石 (50) | 鉄 (120) | ダイヤ (250) |
+| プロテクション | I (80) | II (160) | III (300) |
+| シャープネス | I (80) | II (160) | III (300) |
+| 生命力強化 | +2HP (150) | +4HP (350) | - |
+| 俊足 | +10% (120) | +20% (280) | - |
 
-prefix: "&8[&6KingsLine&8] "
+---
 
-game:
-  starting: "&aゲームが開始されます！準備してください。"
-  started: "&a&lゲーム開始！"
-  ending: "&e{team} &aチームの勝利！"
-  
-team:
-  assigned: "&a{team} &fチームに配属されました。"
-  
-element:
-  select-prompt: "&eエレメントを選択してください！アイテムを右クリック！"
-  selected: "&a{element} &fを選択しました！"
-  random: "&7エレメントが自動的に &a{element} &7に設定されました。"
+## 個人ショップ設定
 
-king:
-  candidacy-start: "&eキング立候補を受け付けています！チャットで &6!king &eと発言！"
-  candidacy-registered: "&aキングに立候補しました！"
-  vote-start: "&eキング投票を開始します！GUIで投票してください。"
-  elected: "&6{player} &eが &6キング &eに選出されました！"
-  killed: "&c&l{team}のキングが倒されました！"
+現在はコード内で定義されています（`ShopGUI.java`）。
 
-score:
-  kill: "&a+{points}pt &7(キル)"
-  king-kill: "&6+{points}pt &7(キングキル)"
-  area-capture: "&b+{points}pt &7(エリア制圧)"
-  core-destroy: "&d+{points}pt &7(コア破壊)"
-  respawn-disabled: "&c&l{team}チームのリスポーンが無効化されました！"
+### 消耗品
+| アイテム | 価格 |
+|----------|------|
+| 金のリンゴ | 8 |
+| 治癒のスプラッシュ | 5 |
+| スピード II (30秒) | 6 |
+| 跳躍 II (30秒) | 4 |
+| 牛乳 | 3 |
+| ステーキ x5 | 2 |
 
-shard:
-  picked-up: "&aShard x{amount} &fを拾いました！"
-  deposited: "&a{amount} Shard &fをチームに納めました！"
-  dropped: "&c所持していたShardをドロップしました。"
+### 武器・ツール
+| アイテム | 価格 |
+|----------|------|
+| 弓 | 10 |
+| 矢 x16 | 4 |
+| 火矢 x8 | 8 |
+| 毒矢 x8 | 10 |
+| 鉄の剣 (早期購入) | 25 |
+| 鉄装備セット | 40 |
 
-lumina:
-  earned: "&e+{amount} Lumina"
-
-shop:
-  purchased: "&a{item} &fを購入しました！"
-  not-enough: "&cLuminaが足りません。(必要: {cost})"
-
-upgrade:
-  purchased: "&aチームアップグレード: &e{upgrade} Lv{level}"
-  not-enough: "&cShardが足りません。(必要: {cost})"
-```
+### 特殊アイテム
+| アイテム | 価格 |
+|----------|------|
+| エンダーパール | 15 |
+| ゴーストオーブ | 20 |
+| フラッシュバン x3 | 6 |
+| グラップル | 12 |
+| ファイアチャージ x3 | 10 |
+| シールドトーテム | 25 |
+| デスマーク | 10 |
 
 ---
 
@@ -412,13 +261,15 @@ upgrade:
 アリーナ設定はコマンドでも行えます：
 
 ```
-/kl setspawn blue      - 現在位置をBlueチームのスポーンに設定
-/kl setspawn red       - 現在位置をRedチームのスポーンに設定
-/kl setcore blue       - 現在位置をBlueチームのコアに設定
-/kl setcore red        - 現在位置をRedチームのコアに設定
-/kl setnpc blue        - 現在位置をBlueチームのNPCに設定
-/kl setnpc red         - 現在位置をRedチームのNPCに設定
-/kl setarea B pos1     - 現在位置をBエリアの角1に設定
-/kl setarea B pos2     - 現在位置をBエリアの角2に設定
-/kl save               - 設定をarenas.ymlに保存
+/kl createarena <name> - 新しいアリーナを作成
+/kl setspawn blue      - Blueチームのスポーンを設定
+/kl setspawn red       - Redチームのスポーンを設定
+/kl setcore blue       - Blueチームのコアを設定（見ている先のブロック）
+/kl setcore red        - Redチームのコアを設定（見ている先のブロック）
+/kl setnpc blue        - BlueチームのNPCを設定
+/kl setnpc red         - RedチームのNPCを設定
+/kl setarea B pos1     - Bエリアの角1を設定
+/kl setarea B pos2     - Bエリアの角2を設定
+/kl setlobby           - ロビーを設定
+/kl save               - 設定を保存
 ```

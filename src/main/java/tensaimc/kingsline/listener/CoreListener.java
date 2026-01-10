@@ -10,6 +10,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 import tensaimc.kingsline.KingsLine;
@@ -25,7 +26,7 @@ import tensaimc.kingsline.util.TitleUtil;
 /**
  * コア破壊リスナー
  * - コア破壊処理
- * - コア再生成（5秒後）
+ * - コア再生成（30秒後）
  * - コア接近警告システム
  */
 public class CoreListener implements Listener {
@@ -101,6 +102,7 @@ public class CoreListener implements Listener {
         Location redCore = arena.getRedCore();
         
         int warningRadius = 10;
+        int criticalRadius = 5; // 緊急警告
         long now = System.currentTimeMillis();
         
         for (KLPlayer klPlayer : gm.getOnlinePlayers()) {
@@ -113,22 +115,42 @@ public class CoreListener implements Listener {
             
             // Blueコアへの接近（Redチームがチェック対象）
             if (klPlayer.getTeam() == Team.RED && blueCore != null && !blueCoreDestroyed) {
-                if (playerLoc.getWorld().equals(blueCore.getWorld()) && 
-                    playerLoc.distance(blueCore) <= warningRadius) {
-                    if (now - lastBlueWarning > WARNING_COOLDOWN) {
-                        warnTeam(Team.BLUE, player.getName());
-                        lastBlueWarning = now;
+                if (playerLoc.getWorld().equals(blueCore.getWorld())) {
+                    double distance = playerLoc.distance(blueCore);
+                    
+                    if (distance <= criticalRadius) {
+                        // 緊急警告（5ブロック以内）
+                        if (now - lastBlueWarning > 2000) { // 2秒クールダウン
+                            warnTeamCritical(Team.BLUE, player.getName());
+                            lastBlueWarning = now;
+                        }
+                    } else if (distance <= warningRadius) {
+                        // 通常警告（10ブロック以内）
+                        if (now - lastBlueWarning > WARNING_COOLDOWN) {
+                            warnTeam(Team.BLUE, player.getName());
+                            lastBlueWarning = now;
+                        }
                     }
                 }
             }
             
             // Redコアへの接近（Blueチームがチェック対象）
             if (klPlayer.getTeam() == Team.BLUE && redCore != null && !redCoreDestroyed) {
-                if (playerLoc.getWorld().equals(redCore.getWorld()) && 
-                    playerLoc.distance(redCore) <= warningRadius) {
-                    if (now - lastRedWarning > WARNING_COOLDOWN) {
-                        warnTeam(Team.RED, player.getName());
-                        lastRedWarning = now;
+                if (playerLoc.getWorld().equals(redCore.getWorld())) {
+                    double distance = playerLoc.distance(redCore);
+                    
+                    if (distance <= criticalRadius) {
+                        // 緊急警告（5ブロック以内）
+                        if (now - lastRedWarning > 2000) {
+                            warnTeamCritical(Team.RED, player.getName());
+                            lastRedWarning = now;
+                        }
+                    } else if (distance <= warningRadius) {
+                        // 通常警告（10ブロック以内）
+                        if (now - lastRedWarning > WARNING_COOLDOWN) {
+                            warnTeam(Team.RED, player.getName());
+                            lastRedWarning = now;
+                        }
                     }
                 }
             }
@@ -136,13 +158,13 @@ public class CoreListener implements Listener {
     }
     
     /**
-     * チームに警告を送信
+     * チームに警告を送信（通常）
      */
     private void warnTeam(Team team, String enemyName) {
         GameManager gm = plugin.getGameManager();
         TeamManager tm = plugin.getTeamManager();
         
-        String warningMessage = ChatColor.RED + "" + ChatColor.BOLD + "⚠ コアに敵が接近中！ (" + enemyName + ")";
+        String warningMessage = ChatColor.YELLOW + "⚠ コアに敵が接近中！ (" + enemyName + ")";
         
         for (KLPlayer klPlayer : tm.getTeamPlayers(gm.getPlayers(), team)) {
             if (!klPlayer.isOnline()) continue;
@@ -159,9 +181,47 @@ public class CoreListener implements Listener {
                 player.sendMessage(warningMessage);
             }
         }
+    }
+    
+    /**
+     * チームに緊急警告を送信（5ブロック以内）
+     */
+    private void warnTeamCritical(Team team, String enemyName) {
+        GameManager gm = plugin.getGameManager();
+        TeamManager tm = plugin.getTeamManager();
         
-        // ボスバーでも警告
-        plugin.getScoreboardManager().showCoreWarning(team);
+        String warningMessage = ChatColor.DARK_RED + "" + ChatColor.BOLD + "⚠⚠⚠ 緊急警報！コアが破壊される！ ⚠⚠⚠";
+        
+        for (KLPlayer klPlayer : tm.getTeamPlayers(gm.getPlayers(), team)) {
+            if (!klPlayer.isOnline()) continue;
+            
+            Player player = klPlayer.getPlayer();
+            if (player != null) {
+                // 派手なTitle表示
+                TitleUtil.sendTitle(player, 
+                        ChatColor.DARK_RED + "" + ChatColor.BOLD + "⚠ 緊急警報 ⚠",
+                        ChatColor.RED + enemyName + " がコアを攻撃中！",
+                        0, 30, 5);
+                
+                // 複数のサウンドで派手に
+                player.playSound(player.getLocation(), Sound.WITHER_SPAWN, 0.8f, 2.0f);
+                player.playSound(player.getLocation(), Sound.ANVIL_LAND, 0.5f, 0.5f);
+                player.playSound(player.getLocation(), Sound.NOTE_BASS, 1.0f, 0.5f);
+                
+                // アクションバー
+                ActionBarUtil.sendActionBar(player, warningMessage);
+                
+                // チャット
+                player.sendMessage(ChatColor.DARK_RED + "━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                player.sendMessage(warningMessage);
+                player.sendMessage(ChatColor.RED + "敵 " + ChatColor.WHITE + enemyName + ChatColor.RED + " がコアに接触寸前！");
+                player.sendMessage(ChatColor.DARK_RED + "━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            }
+        }
+        
+        // 全体通知
+        gm.broadcast(ChatColor.RED + "" + ChatColor.BOLD + "⚠ " + team.getColoredName() + 
+                " のコアが攻撃されています！");
     }
     
     @EventHandler(priority = EventPriority.HIGH)
@@ -175,10 +235,15 @@ public class CoreListener implements Listener {
             return;
         }
         
-        // 黒曜石でなければ無視
+        // 黒曜石以外のブロック破壊を禁止
         if (block.getType() != Material.OBSIDIAN) {
+            event.setCancelled(true);
             return;
         }
+        
+        // 黒曜石はドロップしない（1.8.8対応）
+        event.setCancelled(true);
+        block.setType(Material.AIR);
         
         Arena arena = gm.getCurrentArena();
         if (arena == null) {
@@ -271,16 +336,16 @@ public class CoreListener implements Listener {
                     "コアを破壊しました！ +" + points + "pt");
         }
         
-        // 5秒後にコア再生成
+        // 30秒後にコア再生成
         scheduleRegeneration(coreLoc, destroyedTeam);
     }
     
     /**
-     * コア再生成をスケジュール
+     * コア再生成をスケジュール（30秒）
      */
     private void scheduleRegeneration(Location coreLoc, Team team) {
         new BukkitRunnable() {
-            int countdown = 5;
+            int countdown = 30;
             
             @Override
             public void run() {
@@ -299,7 +364,7 @@ public class CoreListener implements Listener {
                 }
                 
                 // カウントダウン通知
-                if (countdown <= 3) {
+                if (countdown == 20 || countdown == 10 || countdown == 5 || countdown <= 3) {
                     gm.broadcast(ChatColor.YELLOW + team.getColoredName() + 
                             " のコアが " + countdown + " 秒後に再生成されます...");
                 }
@@ -361,5 +426,30 @@ public class CoreListener implements Listener {
     
     public boolean isRedCoreDestroyed() {
         return redCoreDestroyed;
+    }
+    
+    /**
+     * 凍結中のプレイヤーの移動を防止
+     */
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onPlayerMove(PlayerMoveEvent event) {
+        Player player = event.getPlayer();
+        
+        // 凍結中かチェック
+        if (!plugin.getElementManager().isFrozen(player.getUniqueId())) {
+            return;
+        }
+        
+        Location from = event.getFrom();
+        Location to = event.getTo();
+        
+        // 位置が変わっている場合のみキャンセル（視点の回転は許可）
+        if (from.getX() != to.getX() || from.getY() != to.getY() || from.getZ() != to.getZ()) {
+            // 元の位置に戻す（視点は維持）
+            Location newLoc = from.clone();
+            newLoc.setYaw(to.getYaw());
+            newLoc.setPitch(to.getPitch());
+            event.setTo(newLoc);
+        }
     }
 }

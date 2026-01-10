@@ -32,6 +32,9 @@ public class ConfigManager {
     private int shardSpawnAmount;
     private int shardCoreDestroyDrop;
     private int shardKingDeathDrop;
+    private int shardScaleBasePlayers;
+    private double shardScaleMin;
+    private double shardScaleMax;
     
     // Lumina設定
     private int luminaPerKill;
@@ -65,19 +68,22 @@ public class ConfigManager {
         smallScaleThreshold = config.getInt("game.small-scale-threshold", 4);
         
         // スコア設定
-        scoreKill = config.getInt("score.kill", 4);
-        scoreKingKill = config.getInt("score.king-kill", 20);
-        scoreKingAssist = config.getInt("score.king-assist", 5);
+        scoreKill = config.getInt("score.kill", 1);
+        scoreKingKill = config.getInt("score.king-kill", 5);
+        scoreKingAssist = config.getInt("score.king-assist", 0);
         scoreKingDeathPenalty = config.getInt("score.king-death-penalty", -50);
         scoreCoreDestroy = config.getInt("score.core-destroy", 100);
         scoreAreaCapture = config.getInt("score.area-capture", 2);
-        areaTickInterval = config.getInt("score.area-tick-interval", 60);
+        areaTickInterval = config.getInt("score.area-tick-interval", 100); // 5秒ごと
         
         // Shard設定
         shardSpawnInterval = config.getInt("shard.spawn-interval", 10);
         shardSpawnAmount = config.getInt("shard.spawn-amount", 1);
         shardCoreDestroyDrop = config.getInt("shard.core-destroy-drop", 20);
         shardKingDeathDrop = config.getInt("shard.king-death-drop", 5);
+        shardScaleBasePlayers = config.getInt("shard.scale-base-players", 10);
+        shardScaleMin = config.getDouble("shard.scale-min", 1.0);
+        shardScaleMax = config.getDouble("shard.scale-max", 3.0);
         
         // Lumina設定
         luminaPerKill = config.getInt("lumina.per-kill", 2);
@@ -121,6 +127,9 @@ public class ConfigManager {
     public int getShardSpawnAmount() { return shardSpawnAmount; }
     public int getShardCoreDestroyDrop() { return shardCoreDestroyDrop; }
     public int getShardKingDeathDrop() { return shardKingDeathDrop; }
+    public int getShardScaleBasePlayers() { return shardScaleBasePlayers; }
+    public double getShardScaleMin() { return shardScaleMin; }
+    public double getShardScaleMax() { return shardScaleMax; }
     
     // Lumina設定
     public int getLuminaPerKill() { return luminaPerKill; }

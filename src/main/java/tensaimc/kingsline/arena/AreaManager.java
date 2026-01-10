@@ -2,6 +2,8 @@ package tensaimc.kingsline.arena;
 
 import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 import tensaimc.kingsline.KingsLine;
@@ -41,6 +43,8 @@ public class AreaManager {
         
         int tickInterval = plugin.getConfigManager().getAreaTickInterval();
         
+        plugin.getLogger().info("[AreaManager] エリア占領ループを開始します（間隔: " + tickInterval + " ticks）");
+        
         captureTask = new BukkitRunnable() {
             @Override
             public void run() {
@@ -61,6 +65,9 @@ public class AreaManager {
         playersInBArea.clear();
     }
     
+    // デバッグ用カウンター（ログスパム防止）
+    private int debugCounter = 0;
+    
     /**
      * Bエリアの占領判定
      */
@@ -68,12 +75,35 @@ public class AreaManager {
         GameManager gm = plugin.getGameManager();
         Arena arena = gm.getCurrentArena();
         
+        debugCounter++;
+        boolean shouldLog = (debugCounter % 20 == 1); // 20回に1回だけログ
+        
         if (arena == null) {
+            if (shouldLog) {
+                plugin.getLogger().warning("[AreaManager] arena is null!");
+            }
             return;
         }
         
         Area areaB = arena.getAreaB();
-        if (areaB == null || !areaB.isEnabled() || !areaB.isValid()) {
+        if (areaB == null) {
+            if (shouldLog) {
+                plugin.getLogger().warning("[AreaManager] areaB is null!");
+            }
+            return;
+        }
+        
+        if (!areaB.isEnabled()) {
+            if (shouldLog) {
+                plugin.getLogger().warning("[AreaManager] areaB is disabled!");
+            }
+            return;
+        }
+        
+        if (!areaB.isValid()) {
+            if (shouldLog) {
+                plugin.getLogger().warning("[AreaManager] areaB is not valid! pos1=" + areaB.getPos1() + ", pos2=" + areaB.getPos2());
+            }
             return;
         }
         
@@ -100,25 +130,37 @@ public class AreaManager {
             }
             
             if (inArea) {
+                // Bエリア内にいる間、シャードを自動付与（スケール適用）
+                int baseShardAmount = plugin.getConfigManager().getShardSpawnAmount();
+                int shardAmount = gm.getScaledShardAmount(baseShardAmount);
+                klPlayer.addShardCarrying(shardAmount);
+                
+                // Bエリア内にいる間、再生1を付与（白熱したPVP用）
+                player.addPotionEffect(new PotionEffect(PotionEffectType.REGENERATION, 140, 0), true); // 7秒間、レベル1
+                
                 // エリア内にいる場合、アクションバーで通知
                 String status;
+                String shardNotice = ChatColor.AQUA + " [+" + shardAmount + " Shard]";
                 if (blueCount > redCount) {
                     if (klPlayer.getTeam() == Team.BLUE) {
-                        status = ChatColor.GREEN + "Bエリア制圧中！ +" + points + "pt/tick";
+                        status = ChatColor.GREEN + "Bエリア制圧中！ +" + points + "pt/tick" + shardNotice;
                     } else {
-                        status = ChatColor.RED + "Bエリアを奪われています！ (" + blueCount + " vs " + redCount + ")";
+                        status = ChatColor.RED + "Bエリアを奪われています！ (" + blueCount + " vs " + redCount + ")" + shardNotice;
                     }
                 } else if (redCount > blueCount) {
                     if (klPlayer.getTeam() == Team.RED) {
-                        status = ChatColor.GREEN + "Bエリア制圧中！ +" + points + "pt/tick";
+                        status = ChatColor.GREEN + "Bエリア制圧中！ +" + points + "pt/tick" + shardNotice;
                     } else {
-                        status = ChatColor.RED + "Bエリアを奪われています！ (" + blueCount + " vs " + redCount + ")";
+                        status = ChatColor.RED + "Bエリアを奪われています！ (" + blueCount + " vs " + redCount + ")" + shardNotice;
                     }
                 } else {
-                    status = ChatColor.YELLOW + "Bエリア: 拮抗中 (" + blueCount + " vs " + redCount + ")";
+                    status = ChatColor.YELLOW + "Bエリア: 拮抗中 (" + blueCount + " vs " + redCount + ")" + shardNotice;
                 }
                 
                 ActionBarUtil.sendActionBar(player, status);
+            } else if (wasInArea && !inArea) {
+                // エリアから出た場合、再生効果を削除
+                player.removePotionEffect(PotionEffectType.REGENERATION);
             }
             
             playersInBArea.put(klPlayer.getUuid(), inArea);

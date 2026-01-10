@@ -59,19 +59,40 @@ public class ElementManager {
         
         switch (klPlayer.getElement()) {
             case WIND:
-                // 常時Speed I, Jump Boost I
+                // 常時Speed I + walkSpeed上昇（Speed I〜IIの中間の速さ）
                 player.addPotionEffect(new PotionEffect(
                         PotionEffectType.SPEED, Integer.MAX_VALUE, 0, false, false), true);
+                player.setWalkSpeed(0.22f); // デフォルト0.2 → 0.22（+10%基礎速度）
+                break;
+                
+            case ICE:
+                // 移動速度-30%（Slowness II）
                 player.addPotionEffect(new PotionEffect(
-                        PotionEffectType.JUMP, Integer.MAX_VALUE, 0, false, false), true);
+                        PotionEffectType.SLOW, Integer.MAX_VALUE, 1, false, false), true);
                 break;
                 
             case EARTH:
-            case ICE:
-                // 移動速度低下（Slowness I相当でなく、属性で調整が理想だが簡易実装）
-                // ここでは効果なし（ダメージ計算時に反映）
+            case FIRE:
+                // パッシブポーション効果なし（ダメージ計算時に反映）
                 break;
         }
+    }
+    
+    /**
+     * パッシブ効果を解除（ゲーム終了時などに呼び出す）
+     */
+    public void removePassiveEffects(KLPlayer klPlayer) {
+        Player player = klPlayer.getPlayer();
+        if (player == null) {
+            return;
+        }
+        
+        // ポーション効果を解除
+        player.removePotionEffect(PotionEffectType.SPEED);
+        player.removePotionEffect(PotionEffectType.SLOW);
+        
+        // walkSpeedをデフォルトに戻す
+        player.setWalkSpeed(0.2f);
     }
     
     /**
@@ -86,9 +107,10 @@ public class ElementManager {
         
         switch (attacker.getElement()) {
             case FIRE:
-                multiplier *= 1.07; // +7%
                 if (overheatActive.contains(attacker.getUuid())) {
-                    multiplier *= 1.20; // +20%
+                    multiplier *= 1.40; // SP中+40%
+                } else {
+                    multiplier *= 1.20; // パッシブ+20%
                 }
                 break;
         }
@@ -108,10 +130,7 @@ public class ElementManager {
         
         switch (victim.getElement()) {
             case FIRE:
-                multiplier *= 1.05; // +5% ダメージ
-                if (overheatActive.contains(victim.getUuid())) {
-                    multiplier *= 1.10; // +10%
-                }
+                multiplier *= 1.15; // +15% ダメージ
                 break;
                 
             case WIND:
@@ -119,14 +138,29 @@ public class ElementManager {
                 break;
                 
             case EARTH:
-                multiplier *= 0.90; // -10% ダメージ
                 if (bulwarkActive.contains(victim.getUuid())) {
-                    multiplier *= 0.80; // -20%
+                    multiplier *= 0.20; // SP中-80%
+                } else {
+                    multiplier *= 0.70; // パッシブ-30%
                 }
                 break;
         }
         
         return multiplier;
+    }
+    
+    /**
+     * Earthの10%ダメージ完全無視判定
+     */
+    public boolean shouldIgnoreDamage(KLPlayer victim) {
+        if (victim.getElement() != Element.EARTH) {
+            return false;
+        }
+        // Bulwark中は無視判定なし（既に-80%）
+        if (bulwarkActive.contains(victim.getUuid())) {
+            return false;
+        }
+        return Math.random() < 0.10;
     }
     
     /**
@@ -151,16 +185,22 @@ public class ElementManager {
     
     /**
      * Slowness付与判定（Ice）
+     * Iceエレメントが攻撃した時に相手にSlow付与
      */
-    public void checkIceSlow(KLPlayer victim, Player attacker) {
-        if (victim.getElement() != Element.ICE) {
+    public void checkIceSlow(KLPlayer attacker, Player victim) {
+        if (attacker.getElement() != Element.ICE) {
             return;
         }
         
-        // 20%確率で相手にSlow
+        // 20%確率で相手にSlow（2秒間）
         if (Math.random() < 0.20) {
-            attacker.addPotionEffect(new PotionEffect(
-                    PotionEffectType.SLOW, 20, 0, false, false), true);
+            victim.addPotionEffect(new PotionEffect(
+                    PotionEffectType.SLOW, 40, 0, false, false), true);
+            
+            Player attackerPlayer = attacker.getPlayer();
+            if (attackerPlayer != null) {
+                attackerPlayer.sendMessage(ChatColor.AQUA + "❄ Slowness付与！");
+            }
         }
     }
     
@@ -176,17 +216,12 @@ public class ElementManager {
         
         switch (victim.getElement()) {
             case ICE:
-                // エリア内にいるときのみ
-                if (plugin.getAreaManager().isInBArea(victim)) {
-                    resistance += 0.20;
-                }
+                // 常時50%KB耐性
+                resistance += 0.50;
                 break;
                 
             case EARTH:
-                resistance += 0.30;
-                if (bulwarkActive.contains(victim.getUuid())) {
-                    resistance += 0.25; // さらに半減
-                }
+                // EarthはKB耐性なし
                 break;
         }
         
@@ -228,6 +263,11 @@ public class ElementManager {
         }
         
         klPlayer.useSpAbility(cooldown);
+        
+        // 経験値バー（SPゲージ表示）をリセット
+        player.setLevel(0);
+        player.setExp(0f);
+        
         player.sendMessage(ChatColor.GOLD + "SP技を発動！");
     }
     
@@ -298,15 +338,15 @@ public class ElementManager {
         UUID uuid = klPlayer.getUuid();
         frozenPlayers.add(uuid);
         
-        // 移動不可（Slowness 100）
+        // 移動不可（Slowness 100）- 4秒間 (80 ticks)
         player.addPotionEffect(new PotionEffect(
-                PotionEffectType.SLOW, 30, 100, false, false), true);
+                PotionEffectType.SLOW, 80, 100, false, false), true);
         player.addPotionEffect(new PotionEffect(
-                PotionEffectType.JUMP, 30, 128, false, false), true);
+                PotionEffectType.JUMP, 80, 128, false, false), true);
         
-        player.sendMessage(ChatColor.AQUA + "凍結された！");
+        player.sendMessage(ChatColor.AQUA + "凍結された！(4秒)");
         
-        // 1.5秒後に解除
+        // 4秒後に解除
         new BukkitRunnable() {
             @Override
             public void run() {
@@ -318,15 +358,15 @@ public class ElementManager {
                     p.sendMessage(ChatColor.GRAY + "凍結解除");
                 }
             }
-        }.runTaskLater(plugin, 30L);
+        }.runTaskLater(plugin, 80L);
     }
     
     /**
      * Wind: Gale Step
      */
     private boolean activateGaleStep(KLPlayer klPlayer, Player player) {
-        // 視線の先の敵を取得（最大8ブロック）
-        Player target = getTargetPlayer(player, 8);
+        // 視線の先の敵を取得（最大14ブロック）
+        Player target = getTargetPlayer(player, 14);
         
         if (target == null) {
             player.sendMessage(ChatColor.RED + "ターゲットが見つかりません。");
@@ -343,27 +383,36 @@ public class ElementManager {
         Location targetLoc = target.getLocation();
         Vector direction = targetLoc.getDirection().normalize().multiply(-2);
         Location behindLoc = targetLoc.clone().add(direction);
-        behindLoc.setYaw(targetLoc.getYaw());
-        behindLoc.setPitch(0);
+        
+        // 対象を見つめる方向を計算
+        Vector toTarget = targetLoc.toVector().subtract(behindLoc.toVector());
+        behindLoc.setDirection(toTarget);
+        
+        // フライハック検知回避
+        allowTemporaryFlight(player, 60);
         
         player.teleport(behindLoc);
         
-        // 4秒間Speed II
+        // 既存のSpeed効果を削除してからSpeed IIを付与（キングのSpeed Iと競合しないように）
+        player.removePotionEffect(PotionEffectType.SPEED);
+        
+        // 11秒間Speed II (220 ticks)
         player.addPotionEffect(new PotionEffect(
-                PotionEffectType.SPEED, 80, 1, false, false), true);
+                PotionEffectType.SPEED, 220, 1, false, false), true);
         
-        // 最初の攻撃にKBボーナス
-        galeStepBonusActive.add(klPlayer.getUuid());
+        player.sendMessage(ChatColor.WHITE + "🌪 Gale Step! " + target.getName() + "の背後にテレポート！(11秒Speed II)");
         
-        player.sendMessage(ChatColor.WHITE + "🌪 Gale Step! " + target.getName() + "の背後にテレポート！");
-        
-        // 3秒後にKBボーナス解除
+        // 11秒後にパッシブ効果を再適用
+        final KLPlayer finalKlPlayer = klPlayer;
         new BukkitRunnable() {
             @Override
             public void run() {
-                galeStepBonusActive.remove(klPlayer.getUuid());
+                Player p = finalKlPlayer.getPlayer();
+                if (p != null && p.isOnline()) {
+                    applyPassiveEffects(finalKlPlayer);
+                }
             }
-        }.runTaskLater(plugin, 60L);
+        }.runTaskLater(plugin, 220L);
         
         return true;
     }
@@ -375,11 +424,7 @@ public class ElementManager {
         UUID uuid = klPlayer.getUuid();
         bulwarkActive.add(uuid);
         
-        // 移動速度低下
-        player.addPotionEffect(new PotionEffect(
-                PotionEffectType.SLOW, 100, 1, false, false), true);
-        
-        player.sendMessage(ChatColor.GOLD + "🪨 Bulwark! 5秒間、超高耐久！");
+        player.sendMessage(ChatColor.GOLD + "🪨 Bulwark! 5秒間、被ダメ-80%！");
         
         // 5秒後に解除
         new BukkitRunnable() {
@@ -388,7 +433,6 @@ public class ElementManager {
                 bulwarkActive.remove(uuid);
                 Player p = klPlayer.getPlayer();
                 if (p != null) {
-                    p.removePotionEffect(PotionEffectType.SLOW);
                     p.sendMessage(ChatColor.GRAY + "Bulwark終了");
                 }
             }
@@ -429,5 +473,103 @@ public class ElementManager {
     
     public boolean isFrozen(UUID uuid) {
         return frozenPlayers.contains(uuid);
+    }
+    
+    /**
+     * エレメント依存のSP必要HIT数を取得
+     */
+    public int getSpRequiredHits(KLPlayer klPlayer) {
+        if (klPlayer.getElement() == Element.WIND) {
+            return 7; // Windは7HIT
+        }
+        return plugin.getConfigManager().getSpRequiredHits(); // 他は10HIT
+    }
+    
+    // ========== エレメントオーブ用メソッド ==========
+    
+    /**
+     * オーブからOverheatを発動
+     */
+    public void activateOrbOverheat(KLPlayer klPlayer) {
+        Player player = klPlayer.getPlayer();
+        if (player == null) return;
+        
+        activateOverheat(klPlayer, player);
+    }
+    
+    /**
+     * オーブからIce Ageを発動
+     * @return 凍結した人数
+     */
+    public int activateOrbIceAge(KLPlayer klPlayer) {
+        Player player = klPlayer.getPlayer();
+        if (player == null) return 0;
+        
+        GameManager gm = plugin.getGameManager();
+        Location loc = player.getLocation();
+        
+        List<KLPlayer> targets = new ArrayList<>();
+        
+        // 半径6ブロック以内の敵を取得
+        for (Entity entity : player.getNearbyEntities(6, 6, 6)) {
+            if (entity instanceof Player) {
+                Player target = (Player) entity;
+                KLPlayer klTarget = gm.getPlayer(target);
+                
+                if (klTarget != null && klTarget.getTeam() != klPlayer.getTeam()) {
+                    targets.add(klTarget);
+                }
+            }
+        }
+        
+        // 最大2人まで
+        int count = 0;
+        for (KLPlayer target : targets) {
+            if (count >= 2) break;
+            
+            freezePlayer(target);
+            count++;
+        }
+        
+        player.sendMessage(ChatColor.AQUA + "❄ Ice Age! " + count + "人を凍結！");
+        return count;
+    }
+    
+    /**
+     * オーブからGale Stepを発動
+     * @return 成功した場合true
+     */
+    public boolean activateOrbGaleStep(KLPlayer klPlayer) {
+        Player player = klPlayer.getPlayer();
+        if (player == null) return false;
+        
+        return activateGaleStep(klPlayer, player);
+    }
+    
+    /**
+     * オーブからBulwarkを発動
+     */
+    public void activateOrbBulwark(KLPlayer klPlayer) {
+        Player player = klPlayer.getPlayer();
+        if (player == null) return;
+        
+        activateBulwark(klPlayer, player);
+    }
+    
+    /**
+     * フライハック検知回避のため一時的に飛行を許可
+     */
+    private void allowTemporaryFlight(Player player, int ticks) {
+        player.setAllowFlight(true);
+        
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (player.isOnline() && player.getGameMode() == org.bukkit.GameMode.SURVIVAL) {
+                    player.setAllowFlight(false);
+                    player.setFlying(false);
+                }
+            }
+        }.runTaskLater(plugin, ticks);
     }
 }

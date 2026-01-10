@@ -38,7 +38,7 @@ score:
   core-destroy: 100
   
   # Bエリア占領 (tick毎)
-  area-capture: 2
+  area-capture: 1
   
   # エリア占領の判定間隔 (tick = 20分の1秒, 60 = 3秒)
   area-tick-interval: 60
@@ -56,11 +56,23 @@ shard:
   
   # キング死亡時にドロップする数
   king-death-drop: 5
+  
+  # --- 自動スケーリング設定 ---
+  # 少人数ゲームではシャード獲得量が自動的に増加します
+  
+  # 基準プレイヤー数 (この人数のとき倍率1.0)
+  scale-base-players: 10
+  
+  # 最小倍率 (人数が多くても減らさない)
+  scale-min: 1.0
+  
+  # 最大倍率 (少人数時の上限)
+  scale-max: 3.0
 
 # Lumina設定
 lumina:
   # キル時の獲得量
-  per-kill: 2
+  per-kill: 1
 
 # キング設定
 king:

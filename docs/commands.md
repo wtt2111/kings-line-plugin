@@ -1,228 +1,138 @@
 # King's Line - コマンド一覧
 
-## プレイヤーコマンド
+## メインコマンド
 
-### /kl (メインコマンド)
-メインコマンド。サブコマンドなしでヘルプを表示。
+### `/kl` または `/kingsline`
 
-```
-/kl
-```
-
----
-
-### /kl stats [player]
-プレイヤーの統計を表示。
-
-```
-/kl stats           - 自分の統計を表示
-/kl stats Player    - 指定プレイヤーの統計を表示
-```
-
-**出力例:**
-```
-========== PlayerName's Stats ==========
-Wins: 15
-Kills: 234
-Deaths: 189
-K/D Ratio: 1.24
-=========================================
-```
+| コマンド | 権限 | 説明 |
+|----------|------|------|
+| `/kl help` | なし | ヘルプを表示 |
+| `/kl info` | なし | 現在のゲーム状態を表示 |
 
 ---
 
-### /kl party
-パーティー関連のコマンド。
+## ゲーム管理コマンド
 
-```
-/kl party invite <player>  - プレイヤーをパーティーに招待
-/kl party accept           - パーティー招待を承諾
-/kl party deny             - パーティー招待を拒否
-/kl party leave            - パーティーを離脱
-/kl party list             - パーティーメンバーを表示
-/kl party disband          - パーティーを解散 (リーダーのみ)
-```
+| コマンド | 権限 | 説明 |
+|----------|------|------|
+| `/kl start` | `kingsline.admin` | ゲームを開始 |
+| `/kl stop` | `kingsline.admin` | ゲームを強制終了 |
+| `/kl reload` | `kingsline.admin` | 設定をリロード |
 
 ---
 
-### /kl team
-チーム関連のコマンド（デバッグ/テスト用）。
+## アリーナ設定コマンド
 
-```
-/kl team info              - 自分のチーム情報を表示
-```
+### 基本設定
 
----
+| コマンド | 説明 |
+|----------|------|
+| `/kl createarena <名前>` | 新しいアリーナを作成 |
+| `/kl setlobby` | ロビー位置を設定 |
 
-## 管理者コマンド
+### チーム設定
 
-### /kl start
-ゲームを開始する。
+| コマンド | 説明 |
+|----------|------|
+| `/kl setspawn blue` | Blueチームのスポーン位置を設定 |
+| `/kl setspawn red` | Redチームのスポーン位置を設定 |
+| `/kl setcore blue` | Blueチームのコア位置を設定（見ている先のブロック） |
+| `/kl setcore red` | Redチームのコア位置を設定（見ている先のブロック） |
+| `/kl setnpc blue` | Blueチームのショップ/銀行NPC位置を設定 |
+| `/kl setnpc red` | Redチームのショップ/銀行NPC位置を設定 |
 
-```
-/kl start
-```
+### エリア設定
 
-**必要権限:** `kingsline.admin`
+| コマンド | 説明 |
+|----------|------|
+| `/kl setarea B pos1` | Bエリアの角1を設定 |
+| `/kl setarea B pos2` | Bエリアの角2を設定 |
+| `/kl setarea A pos1` | Aエリアの角1を設定 |
+| `/kl setarea A pos2` | Aエリアの角2を設定 |
+| `/kl setarea C pos1` | Cエリアの角1を設定 |
+| `/kl setarea C pos2` | Cエリアの角2を設定 |
 
----
+### 保存
 
-### /kl stop
-ゲームを強制終了する。
-
-```
-/kl stop
-```
-
-**必要権限:** `kingsline.admin`
-
----
-
-### /kl reload
-設定ファイルをリロードする。
-
-```
-/kl reload
-```
-
-**必要権限:** `kingsline.admin`
+| コマンド | 説明 |
+|----------|------|
+| `/kl save` | 現在の設定を arenas.yml に保存 |
 
 ---
 
-## セットアップコマンド
+## パーティーコマンド
 
-アリーナの設定を行うコマンド群。
-
-### /kl setspawn <team>
-チームのスポーン位置を設定。
-
-```
-/kl setspawn blue          - Blueチームのスポーン
-/kl setspawn red           - Redチームのスポーン
-```
-
-**必要権限:** `kingsline.admin`
+| コマンド | 説明 |
+|----------|------|
+| `/kl party invite <プレイヤー>` | プレイヤーをパーティーに招待 |
+| `/kl party accept` | パーティー招待を承諾 |
+| `/kl party deny` | パーティー招待を拒否 |
+| `/kl party leave` | パーティーを離脱 |
+| `/kl party list` | パーティーメンバーを表示 |
+| `/kl party kick <プレイヤー>` | パーティーからキック（リーダーのみ） |
+| `/kl party disband` | パーティーを解散（リーダーのみ） |
 
 ---
 
-### /kl setcore <team>
-チームのコア位置を設定。
+## ゲーム中コマンド（チャット）
 
-```
-/kl setcore blue           - Blueチームのコア
-/kl setcore red            - Redチームのコア
-```
-
-**必要権限:** `kingsline.admin`
+| コマンド | 説明 |
+|----------|------|
+| `!king` | キングに立候補（準備フェーズ中のみ） |
 
 ---
 
-### /kl setnpc <team>
-チームのNPC位置を設定（ショップ/Shard銀行）。
+## 権限
 
-```
-/kl setnpc blue            - BlueチームのNPC
-/kl setnpc red             - RedチームのNPC
-```
-
-**必要権限:** `kingsline.admin`
+| 権限 | 説明 |
+|------|------|
+| `kingsline.admin` | 管理者コマンド（start, stop, reload, 設定系） |
+| `kingsline.play` | ゲームに参加（デフォルトで全員に付与） |
 
 ---
 
-### /kl setarea <area> <pos1|pos2>
-エリアの範囲を設定。
+## アリーナ設定の流れ
 
-```
-/kl setarea A pos1         - Aエリアの角1
-/kl setarea A pos2         - Aエリアの角2
-/kl setarea B pos1         - Bエリアの角1
-/kl setarea B pos2         - Bエリアの角2
-/kl setarea C pos1         - Cエリアの角1
-/kl setarea C pos2         - Cエリアの角2
-```
+1. 新しいアリーナを作成
+   ```
+   /kl createarena myarena
+   ```
 
-**必要権限:** `kingsline.admin`
+2. 両チームのスポーン位置を設定
+   ```
+   /kl setspawn blue
+   /kl setspawn red
+   ```
 
----
+3. 両チームのコアを設定（見ている先の黒曜石）
+   ```
+   /kl setcore blue
+   /kl setcore red
+   ```
 
-### /kl setlobby
-ロビー位置を設定（ゲーム終了後のテレポート先）。
+4. 両チームのNPC位置を設定
+   ```
+   /kl setnpc blue
+   /kl setnpc red
+   ```
 
-```
-/kl setlobby
-```
+5. エリアを設定（Bは必須、A/Cは大規模用）
+   ```
+   /kl setarea B pos1
+   /kl setarea B pos2
+   ```
 
-**必要権限:** `kingsline.admin`
+6. ロビーを設定（オプション）
+   ```
+   /kl setlobby
+   ```
 
----
+7. 設定を保存
+   ```
+   /kl save
+   ```
 
-### /kl save
-現在の設定を `arenas.yml` に保存。
-
-```
-/kl save
-```
-
-**必要権限:** `kingsline.admin`
-
----
-
-### /kl createarena <name>
-新しいアリーナを作成。
-
-```
-/kl createarena castle     - "castle"という名前のアリーナを作成
-```
-
-**必要権限:** `kingsline.admin`
-
----
-
-### /kl setarena <name>
-使用するアリーナを切り替え。
-
-```
-/kl setarena castle        - "castle"アリーナを使用
-/kl setarena desert        - "desert"アリーナを使用
-```
-
-**必要権限:** `kingsline.admin`
-
----
-
-## デバッグコマンド
-
-開発/テスト用のコマンド。
-
-### /kl debug
-デバッグモードの切り替え/情報表示。
-
-```
-/kl debug                  - デバッグモード切り替え
-/kl debug info             - 現在のゲーム状態を表示
-/kl debug shard <amount>   - Shardを自分に付与
-/kl debug lumina <amount>  - Luminaを自分に付与
-/kl debug sp               - SPゲージを満タンにする
-/kl debug king             - 自分をキングにする
-```
-
-**必要権限:** `kingsline.admin`
-
----
-
-## 権限一覧
-
-| 権限 | 説明 | デフォルト |
-|------|------|-----------|
-| `kingsline.play` | ゲームに参加できる | true |
-| `kingsline.stats` | 統計を見る | true |
-| `kingsline.party` | パーティー機能を使う | true |
-| `kingsline.admin` | 管理者コマンドを使用 | op |
-
----
-
-## エイリアス
-
-`/kl` の代わりに以下も使用可能:
-- `/kingsline`
-- `/kingline`
+8. ゲーム開始
+   ```
+   /kl start
+   ```

@@ -8,7 +8,6 @@ import org.bukkit.scheduler.BukkitTask;
 import tensaimc.kingsline.KingsLine;
 
 import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.*;
 
@@ -44,6 +43,8 @@ public class BossBarManager {
      */
     public void start() {
         stop();
+        
+        plugin.getLogger().info("[BossBar] ボスバーシステムを開始します");
         
         updateTask = new BukkitRunnable() {
             @Override
@@ -153,17 +154,24 @@ public class BossBarManager {
                 sendTeleportPacket(player, wither);
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            // ボスバー関連のエラーをログに出力（デバッグ用）
+            plugin.getLogger().warning("[BossBar] Error updating boss bar for " + player.getName() + ": " + e.getMessage());
+            if (e.getCause() != null) {
+                plugin.getLogger().warning("[BossBar] Cause: " + e.getCause().getMessage());
+            }
         }
     }
     
     /**
-     * Witherの表示位置を計算（プレイヤーの視線の先、地下）
+     * Witherの表示位置を計算
+     * ボスバーを表示するにはWitherが100ブロック以内にいる必要がある
+     * Invisibleなので見えないが、HPバーは表示される
      */
     private Location getWitherLocation(Player player) {
         Location loc = player.getLocation().clone();
-        loc.add(loc.getDirection().multiply(40));
-        loc.setY(-50);
+        // プレイヤーの視線方向に30ブロック、少し下
+        loc.add(loc.getDirection().multiply(30));
+        loc.setY(Math.max(1, loc.getY() - 10)); // 地下方向、最低Y=1
         return loc;
     }
     
@@ -245,11 +253,9 @@ public class BossBarManager {
         Method getDataWatcherMethod = entityClass.getMethod("getDataWatcher");
         Object dataWatcher = getDataWatcherMethod.invoke(wither);
         
-        Method cMethod = dataWatcherClass.getMethod("c");
-        Object watchableObjects = cMethod.invoke(dataWatcher);
-        
-        Constructor<?> constructor = packetClass.getConstructor(int.class, List.class, boolean.class);
-        Object packet = constructor.newInstance(entityId, watchableObjects, true);
+        // 1.8.8では (int, DataWatcher, boolean) を使用
+        Constructor<?> constructor = packetClass.getConstructor(int.class, dataWatcherClass, boolean.class);
+        Object packet = constructor.newInstance(entityId, dataWatcher, true);
         
         sendPacket(player, packet);
     }

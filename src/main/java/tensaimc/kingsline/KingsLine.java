@@ -11,6 +11,8 @@ import tensaimc.kingsline.element.ElementManager;
 import tensaimc.kingsline.game.GameManager;
 import tensaimc.kingsline.gui.ElementSelectGUI;
 import tensaimc.kingsline.gui.GUIManager;
+import tensaimc.kingsline.gui.KingVoteGUI;
+import tensaimc.kingsline.gui.NPCMenuGUI;
 import tensaimc.kingsline.gui.ShopGUI;
 import tensaimc.kingsline.gui.UpgradeGUI;
 import tensaimc.kingsline.king.KingManager;
@@ -22,6 +24,7 @@ import tensaimc.kingsline.resource.LuminaManager;
 import tensaimc.kingsline.resource.ShardManager;
 import tensaimc.kingsline.score.ScoreManager;
 import tensaimc.kingsline.scoreboard.ScoreboardManager;
+import tensaimc.kingsline.item.ShopItemRegistry;
 import tensaimc.kingsline.upgrade.UpgradeManager;
 
 /**
@@ -53,6 +56,7 @@ public final class KingsLine extends JavaPlugin {
     private NPCManager npcManager;
     private GUIManager guiManager;
     private KingManager kingManager;
+    private ShopItemRegistry shopItemRegistry;
     
     // Database
     private StatsDatabase statsDatabase;
@@ -61,6 +65,8 @@ public final class KingsLine extends JavaPlugin {
     private ElementSelectGUI elementSelectGUI;
     private ShopGUI shopGUI;
     private UpgradeGUI upgradeGUI;
+    private NPCMenuGUI npcMenuGUI;
+    private KingVoteGUI kingVoteGUI;
     
     // Listeners（参照を保持）
     private CoreListener coreListener;
@@ -85,26 +91,33 @@ public final class KingsLine extends JavaPlugin {
         npcManager = new NPCManager(this);
         guiManager = new GUIManager(this);
         kingManager = new KingManager(this);
+        shopItemRegistry = new ShopItemRegistry(this);
         statsDatabase = new StatsDatabase(this);
         scoreboardManager = new ScoreboardManager(this);
+        
+        // CoreListenerはGameManagerより先に初期化（GameManager.reset()で参照されるため）
+        coreListener = new CoreListener(this);
+        
         gameManager = new GameManager(this);
         
         // GUI初期化
         elementSelectGUI = new ElementSelectGUI(this);
         shopGUI = new ShopGUI(this);
         upgradeGUI = new UpgradeGUI(this);
+        npcMenuGUI = new NPCMenuGUI(this);
+        kingVoteGUI = new KingVoteGUI(this);
         
         // コマンド登録
         getCommand("kl").setExecutor(new KLCommand(this));
         getCommand("kl").setTabCompleter(new KLTabCompleter(this));
         
         // リスナー登録
-        coreListener = new CoreListener(this);
         getServer().getPluginManager().registerEvents(new PlayerListener(this), this);
         getServer().getPluginManager().registerEvents(new CombatListener(this), this);
         getServer().getPluginManager().registerEvents(new GUIListener(this), this);
         getServer().getPluginManager().registerEvents(new NPCListener(this), this);
         getServer().getPluginManager().registerEvents(new ItemListener(this), this);
+        getServer().getPluginManager().registerEvents(new MobListener(this), this);
         getServer().getPluginManager().registerEvents(coreListener, this);
         
         getLogger().info("King's Line が有効になりました！");
@@ -214,6 +227,10 @@ public final class KingsLine extends JavaPlugin {
         return kingManager;
     }
     
+    public ShopItemRegistry getShopItemRegistry() {
+        return shopItemRegistry;
+    }
+    
     // ========== Database ==========
     
     public StatsDatabase getStatsDatabase() {
@@ -232,6 +249,14 @@ public final class KingsLine extends JavaPlugin {
     
     public UpgradeGUI getUpgradeGUI() {
         return upgradeGUI;
+    }
+    
+    public NPCMenuGUI getNPCMenuGUI() {
+        return npcMenuGUI;
+    }
+    
+    public KingVoteGUI getKingVoteGUI() {
+        return kingVoteGUI;
     }
     
     // ========== Listener Getters ==========

@@ -69,42 +69,40 @@ public class ElementSelectGUI {
         switch (element) {
             case FIRE:
                 lore.add(ChatColor.YELLOW + "パッシブ:");
-                lore.add(ChatColor.WHITE + "  与ダメージ +7%");
-                lore.add(ChatColor.WHITE + "  10%確率で炎上付与");
-                lore.add(ChatColor.RED + "  被ダメージ +5%");
+                lore.add(ChatColor.GREEN + "  与ダメージ +20%");
+                lore.add(ChatColor.GREEN + "  攻撃時10%で炎上付与");
+                lore.add(ChatColor.RED + "  被ダメージ +15%");
                 lore.add("");
-                lore.add(ChatColor.GOLD + "SP技: Overheat");
-                lore.add(ChatColor.WHITE + "  5秒間、与ダメ+20%、確定炎上");
+                lore.add(ChatColor.GOLD + "SP技: Overheat" + ChatColor.GRAY + " [10HIT]");
+                lore.add(ChatColor.WHITE + "  5秒間、与ダメ+40%、確定炎上");
                 break;
                 
             case ICE:
                 lore.add(ChatColor.YELLOW + "パッシブ:");
-                lore.add(ChatColor.WHITE + "  エリア内でKB耐性 -20%");
-                lore.add(ChatColor.WHITE + "  被弾時20%でSlow付与");
-                lore.add(ChatColor.RED + "  移動速度 -5%");
+                lore.add(ChatColor.GREEN + "  KB耐性 50%");
+                lore.add(ChatColor.GREEN + "  攻撃時20%でSlow付与");
+                lore.add(ChatColor.RED + "  移動速度 -30%");
                 lore.add("");
-                lore.add(ChatColor.GOLD + "SP技: Ice Age");
-                lore.add(ChatColor.WHITE + "  周囲の敵2人を1.5秒フリーズ");
+                lore.add(ChatColor.GOLD + "SP技: Ice Age" + ChatColor.GRAY + " [10HIT]");
+                lore.add(ChatColor.WHITE + "  周囲6m内の敵2人を4秒凍結");
                 break;
                 
             case WIND:
                 lore.add(ChatColor.YELLOW + "パッシブ:");
-                lore.add(ChatColor.WHITE + "  常時 Speed I");
-                lore.add(ChatColor.WHITE + "  常時 Jump Boost I");
+                lore.add(ChatColor.GREEN + "  常時 Speed I + 基礎速度UP");
                 lore.add(ChatColor.RED + "  被ダメージ +10%");
                 lore.add("");
-                lore.add(ChatColor.GOLD + "SP技: Gale Step");
-                lore.add(ChatColor.WHITE + "  敵の背後にテレポート");
+                lore.add(ChatColor.GOLD + "SP技: Gale Step" + ChatColor.GRAY + " [7HIT]");
+                lore.add(ChatColor.WHITE + "  敵の背後にTP + 11秒Speed II");
                 break;
                 
             case EARTH:
                 lore.add(ChatColor.YELLOW + "パッシブ:");
-                lore.add(ChatColor.WHITE + "  被ダメージ -10%");
-                lore.add(ChatColor.WHITE + "  KB耐性 -30%");
-                lore.add(ChatColor.RED + "  移動速度 -5%");
+                lore.add(ChatColor.GREEN + "  被ダメージ -30%");
+                lore.add(ChatColor.GREEN + "  10%でダメージ完全無効");
                 lore.add("");
-                lore.add(ChatColor.GOLD + "SP技: Bulwark");
-                lore.add(ChatColor.WHITE + "  5秒間、超高耐久の壁に");
+                lore.add(ChatColor.GOLD + "SP技: Bulwark" + ChatColor.GRAY + " [10HIT]");
+                lore.add(ChatColor.WHITE + "  5秒間、被ダメ-80%");
                 break;
         }
         
@@ -142,6 +140,10 @@ public class ElementSelectGUI {
             KLPlayer klPlayer = plugin.getGameManager().getPlayer(player);
             if (klPlayer != null) {
                 klPlayer.setElement(selected);
+                
+                // パッシブ効果を適用
+                plugin.getElementManager().applyPassiveEffects(klPlayer);
+                
                 player.sendMessage(selected.getColor() + selected.getName() + 
                         ChatColor.GREEN + " を選択しました！");
                 player.closeInventory();

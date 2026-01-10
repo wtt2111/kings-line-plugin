@@ -113,14 +113,32 @@ public class ScoreboardManager {
         
         int line = 15;
         
-        // スコア
+        // 区切り線
+        setLine(objective, line--, ChatColor.DARK_GRAY + "━━━━━━━━━━━");
+        setLine(objective, line--, "");
+        
+        // スコア（リスポーン不可チームは残り人数を表示）
         int blueScore = gm.getScore(Team.BLUE);
         int redScore = gm.getScore(Team.RED);
+        boolean blueCanRespawn = gm.canTeamRespawn(Team.BLUE);
+        boolean redCanRespawn = gm.canTeamRespawn(Team.RED);
         
-        setLine(objective, line--, ChatColor.DARK_GRAY + "═════════════════");
-        setLine(objective, line--, "");
-        setLine(objective, line--, ChatColor.BLUE + "◆ BLUE: " + ChatColor.WHITE + blueScore + "pt");
-        setLine(objective, line--, ChatColor.RED + "◆ RED: " + ChatColor.WHITE + redScore + "pt");
+        // BLUEチーム
+        if (!blueCanRespawn) {
+            int blueAlive = plugin.getTeamManager().getAliveCount(gm.getPlayers(), Team.BLUE);
+            setLine(objective, line--, ChatColor.BLUE + "◆ BLUE: " + ChatColor.YELLOW + "残り" + blueAlive + "人");
+        } else {
+            setLine(objective, line--, ChatColor.BLUE + "◆ BLUE: " + ChatColor.WHITE + blueScore + "pt");
+        }
+        
+        // REDチーム
+        if (!redCanRespawn) {
+            int redAlive = plugin.getTeamManager().getAliveCount(gm.getPlayers(), Team.RED);
+            setLine(objective, line--, ChatColor.RED + "◆ RED: " + ChatColor.YELLOW + "残り" + redAlive + "人");
+        } else {
+            setLine(objective, line--, ChatColor.RED + "◆ RED: " + ChatColor.WHITE + redScore + "pt");
+        }
+        
         setLine(objective, line--, " ");
         
         // コア状態
@@ -130,24 +148,33 @@ public class ScoreboardManager {
         String redCore = coreListener != null && coreListener.isRedCoreDestroyed() ? 
                 ChatColor.DARK_RED + "✗" : ChatColor.GREEN + "✓";
         
-        setLine(objective, line--, ChatColor.GRAY + "コア: " + ChatColor.BLUE + blueCore + 
-                ChatColor.GRAY + " | " + ChatColor.RED + redCore);
-        setLine(objective, line--, "  ");
-        setLine(objective, line--, ChatColor.DARK_GRAY + "─────────────────");
+        setLine(objective, line--, ChatColor.GRAY + "コア: " + ChatColor.BLUE + "B" + blueCore + 
+                ChatColor.GRAY + " | " + ChatColor.RED + "R" + redCore);
         
-        // 個人情報
-        setLine(objective, line--, ChatColor.YELLOW + "あなたの状態:");
+        setLine(objective, line--, ChatColor.DARK_GRAY + "━━━━━━━━━━━");
+        setLine(objective, line--, "  ");
+        
+        // 個人情報 - Shard（所持/貯金）
         setLine(objective, line--, ChatColor.AQUA + "◈ Shard: " + ChatColor.WHITE + 
-                klPlayer.getShardCarrying() + ChatColor.GRAY + " (所持)");
-        setLine(objective, line--, ChatColor.AQUA + "  貯金: " + ChatColor.WHITE + 
-                klPlayer.getShardSaved());
+                klPlayer.getShardCarrying() + ChatColor.GRAY + " / " + 
+                ChatColor.GREEN + klPlayer.getShardSaved());
+        
+        // 個人情報 - Lumina（所持/貯金）
         setLine(objective, line--, ChatColor.LIGHT_PURPLE + "✦ Lumina: " + ChatColor.WHITE + 
                 klPlayer.getLuminaCarrying() + ChatColor.GRAY + " / " + 
-                ChatColor.WHITE + klPlayer.getLuminaSaved());
+                ChatColor.GREEN + klPlayer.getLuminaSaved());
         setLine(objective, line--, "   ");
+        
+        // エレメント表示
+        String elementDisplay = klPlayer.getElement() != null ? 
+                klPlayer.getElement().getColor() + klPlayer.getElement().getDisplayName() : 
+                ChatColor.GRAY + "未選択";
+        setLine(objective, line--, ChatColor.YELLOW + "属性: " + elementDisplay);
+        
         setLine(objective, line--, ChatColor.GREEN + "K/D: " + ChatColor.WHITE + 
-                klPlayer.getKillsThisGame() + "/" + klPlayer.getDeathsThisGame());
-        setLine(objective, line--, ChatColor.DARK_GRAY + "═════════════════");
+                klPlayer.getKillsThisGame() + " / " + klPlayer.getDeathsThisGame());
+        
+        setLine(objective, line--, ChatColor.DARK_GRAY + "━━━━━━━━━━━");
     }
     
     /**
