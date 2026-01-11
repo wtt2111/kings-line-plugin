@@ -27,7 +27,7 @@ public class KLTabCompleter implements TabCompleter {
             "save", "createarena", "setarena", "debug"
     );
     
-    private static final List<String> DEBUG_TYPES = Arrays.asList("shard", "lumina", "score");
+    private static final List<String> DEBUG_TYPES = Arrays.asList("shard", "lumina", "score", "forcestart");
     
     private static final List<String> PARTY_ACTIONS = Arrays.asList(
             "invite", "accept", "deny", "leave", "list", "disband"

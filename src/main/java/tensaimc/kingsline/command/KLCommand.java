@@ -94,6 +94,7 @@ public class KLCommand implements CommandExecutor {
             sender.sendMessage(ChatColor.YELLOW + "/kl debug shard <amount>" + ChatColor.GRAY + " - 所持シャード設定");
             sender.sendMessage(ChatColor.YELLOW + "/kl debug lumina <amount>" + ChatColor.GRAY + " - 所持ルミナ設定");
             sender.sendMessage(ChatColor.YELLOW + "/kl debug score <blue|red> <amount>" + ChatColor.GRAY + " - チームスコア設定");
+            sender.sendMessage(ChatColor.YELLOW + "/kl debug forcestart" + ChatColor.GRAY + " - 人数無視で強制開始");
         }
     }
     
@@ -106,15 +107,19 @@ public class KLCommand implements CommandExecutor {
         }
         
         GameManager gm = plugin.getGameManager();
-        if (gm.getState() != GameState.WAITING) {
+        
+        // 既に自動ループ中またはゲーム進行中
+        if (gm.isAutoLoopEnabled() || gm.getState() != GameState.WAITING) {
             sender.sendMessage(ChatColor.RED + "ゲームは既に進行中です。");
             return true;
         }
         
-        if (gm.startGame()) {
-            sender.sendMessage(ChatColor.GREEN + "ゲームを開始しました。");
+        // 自動ループを開始
+        if (gm.startAutoLoop()) {
+            sender.sendMessage(ChatColor.GREEN + "自動ゲームループを開始しました。");
+            sender.sendMessage(ChatColor.GRAY + "ロビーでカウントダウンが始まります。");
         } else {
-            sender.sendMessage(ChatColor.RED + "ゲームの開始に失敗しました。");
+            sender.sendMessage(ChatColor.RED + "ゲームの開始に失敗しました。アリーナ設定を確認してください。");
         }
         
         return true;
@@ -127,13 +132,17 @@ public class KLCommand implements CommandExecutor {
         }
         
         GameManager gm = plugin.getGameManager();
-        if (gm.getState() == GameState.WAITING) {
+        
+        // ループも停止中、かつWAITING状態の場合
+        if (!gm.isAutoLoopEnabled() && gm.getState() == GameState.WAITING) {
             sender.sendMessage(ChatColor.RED + "ゲームは開始されていません。");
             return true;
         }
         
-        gm.forceStop();
-        sender.sendMessage(ChatColor.YELLOW + "ゲームを強制終了しました。");
+        // 自動ループを完全停止（統計保存なし）
+        gm.stopAutoLoop();
+        sender.sendMessage(ChatColor.YELLOW + "自動ゲームループを停止しました。");
+        sender.sendMessage(ChatColor.GRAY + "統計は記録されていません。");
         
         return true;
     }
@@ -578,6 +587,7 @@ public class KLCommand implements CommandExecutor {
             sender.sendMessage(ChatColor.YELLOW + "/kl debug shard <amount>" + ChatColor.GRAY + " - 所持シャードを設定");
             sender.sendMessage(ChatColor.YELLOW + "/kl debug lumina <amount>" + ChatColor.GRAY + " - 所持ルミナを設定");
             sender.sendMessage(ChatColor.YELLOW + "/kl debug score <blue|red> <amount>" + ChatColor.GRAY + " - チームスコアを設定");
+            sender.sendMessage(ChatColor.YELLOW + "/kl debug forcestart" + ChatColor.GRAY + " - 人数無視でゲーム強制開始");
             return true;
         }
         
@@ -590,9 +600,11 @@ public class KLCommand implements CommandExecutor {
                 return handleDebugLumina(player, args);
             case "score":
                 return handleDebugScore(player, args);
+            case "forcestart":
+                return handleDebugForceStart(player);
             default:
                 sender.sendMessage(ChatColor.RED + "不明なサブコマンド: " + type);
-                sender.sendMessage(ChatColor.GRAY + "使用可能: shard, lumina, score");
+                sender.sendMessage(ChatColor.GRAY + "使用可能: shard, lumina, score, forcestart");
                 return true;
         }
     }
@@ -684,6 +696,25 @@ public class KLCommand implements CommandExecutor {
         gm.setScore(team, amount);
         player.sendMessage(ChatColor.GREEN + team.getColoredName() + ChatColor.GREEN + " のスコアを " + 
                 ChatColor.WHITE + amount + ChatColor.GREEN + " に設定しました。");
+        
+        return true;
+    }
+    
+    private boolean handleDebugForceStart(Player player) {
+        GameManager gm = plugin.getGameManager();
+        
+        // 既にゲーム中の場合
+        if (gm.getState() == GameState.RUNNING || gm.getState() == GameState.STARTING) {
+            player.sendMessage(ChatColor.RED + "ゲームは既に進行中です。");
+            return true;
+        }
+        
+        // 強制開始
+        if (gm.forceStartGame()) {
+            player.sendMessage(ChatColor.GREEN + "ゲームを強制開始しました！");
+        } else {
+            player.sendMessage(ChatColor.RED + "ゲームの強制開始に失敗しました。アリーナ設定を確認してください。");
+        }
         
         return true;
     }

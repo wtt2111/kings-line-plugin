@@ -2,18 +2,28 @@ package tensaimc.kingsline;
 
 import org.bukkit.plugin.java.JavaPlugin;
 import tensaimc.kingsline.arena.AreaManager;
+import tensaimc.kingsline.chat.ChatManager;
+import tensaimc.kingsline.command.ChatCommand;
+import tensaimc.kingsline.command.ChatTabCompleter;
 import tensaimc.kingsline.command.KLCommand;
 import tensaimc.kingsline.command.KLTabCompleter;
+import tensaimc.kingsline.command.PartyCommand;
+import tensaimc.kingsline.command.PartyTabCompleter;
 import tensaimc.kingsline.config.ArenaConfig;
 import tensaimc.kingsline.config.ConfigManager;
 import tensaimc.kingsline.database.StatsDatabase;
 import tensaimc.kingsline.element.ElementManager;
 import tensaimc.kingsline.game.GameManager;
+import tensaimc.kingsline.gui.CommandHelpGUI;
+import tensaimc.kingsline.gui.ElementInfoGUI;
 import tensaimc.kingsline.gui.ElementSelectGUI;
+import tensaimc.kingsline.gui.GameRulesGUI;
 import tensaimc.kingsline.gui.GUIManager;
 import tensaimc.kingsline.gui.KingVoteGUI;
+import tensaimc.kingsline.gui.LobbyHelpGUI;
 import tensaimc.kingsline.gui.NPCMenuGUI;
 import tensaimc.kingsline.gui.ShopGUI;
+import tensaimc.kingsline.gui.ShopPreviewGUI;
 import tensaimc.kingsline.gui.UpgradeGUI;
 import tensaimc.kingsline.king.KingManager;
 import tensaimc.kingsline.listener.*;
@@ -57,6 +67,7 @@ public final class KingsLine extends JavaPlugin {
     private GUIManager guiManager;
     private KingManager kingManager;
     private ShopItemRegistry shopItemRegistry;
+    private ChatManager chatManager;
     
     // Database
     private StatsDatabase statsDatabase;
@@ -67,6 +78,13 @@ public final class KingsLine extends JavaPlugin {
     private UpgradeGUI upgradeGUI;
     private NPCMenuGUI npcMenuGUI;
     private KingVoteGUI kingVoteGUI;
+    
+    // ロビーヘルプGUIs
+    private LobbyHelpGUI lobbyHelpGUI;
+    private GameRulesGUI gameRulesGUI;
+    private CommandHelpGUI commandHelpGUI;
+    private ElementInfoGUI elementInfoGUI;
+    private ShopPreviewGUI shopPreviewGUI;
     
     // Listeners（参照を保持）
     private CoreListener coreListener;
@@ -92,6 +110,7 @@ public final class KingsLine extends JavaPlugin {
         guiManager = new GUIManager(this);
         kingManager = new KingManager(this);
         shopItemRegistry = new ShopItemRegistry(this);
+        chatManager = new ChatManager(this);
         statsDatabase = new StatsDatabase(this);
         scoreboardManager = new ScoreboardManager(this);
         
@@ -107,9 +126,31 @@ public final class KingsLine extends JavaPlugin {
         npcMenuGUI = new NPCMenuGUI(this);
         kingVoteGUI = new KingVoteGUI(this);
         
+        // ロビーヘルプGUI初期化
+        lobbyHelpGUI = new LobbyHelpGUI(this);
+        gameRulesGUI = new GameRulesGUI(this);
+        commandHelpGUI = new CommandHelpGUI(this);
+        elementInfoGUI = new ElementInfoGUI(this);
+        shopPreviewGUI = new ShopPreviewGUI(this);
+        
         // コマンド登録
         getCommand("kl").setExecutor(new KLCommand(this));
         getCommand("kl").setTabCompleter(new KLTabCompleter(this));
+        
+        // パーティーコマンド登録
+        PartyCommand partyCommand = new PartyCommand(this);
+        PartyTabCompleter partyTabCompleter = new PartyTabCompleter(this);
+        getCommand("p").setExecutor(partyCommand);
+        getCommand("p").setTabCompleter(partyTabCompleter);
+        getCommand("pl").setExecutor(partyCommand);
+        
+        // チャットコマンド登録
+        ChatCommand chatCommand = new ChatCommand(this);
+        ChatTabCompleter chatTabCompleter = new ChatTabCompleter();
+        getCommand("chat").setExecutor(chatCommand);
+        getCommand("chat").setTabCompleter(chatTabCompleter);
+        getCommand("ch").setExecutor(chatCommand);
+        getCommand("ch").setTabCompleter(chatTabCompleter);
         
         // リスナー登録
         getServer().getPluginManager().registerEvents(new PlayerListener(this), this);
@@ -231,6 +272,10 @@ public final class KingsLine extends JavaPlugin {
         return shopItemRegistry;
     }
     
+    public ChatManager getChatManager() {
+        return chatManager;
+    }
+    
     // ========== Database ==========
     
     public StatsDatabase getStatsDatabase() {
@@ -257,6 +302,26 @@ public final class KingsLine extends JavaPlugin {
     
     public KingVoteGUI getKingVoteGUI() {
         return kingVoteGUI;
+    }
+    
+    public LobbyHelpGUI getLobbyHelpGUI() {
+        return lobbyHelpGUI;
+    }
+    
+    public GameRulesGUI getGameRulesGUI() {
+        return gameRulesGUI;
+    }
+    
+    public CommandHelpGUI getCommandHelpGUI() {
+        return commandHelpGUI;
+    }
+    
+    public ElementInfoGUI getElementInfoGUI() {
+        return elementInfoGUI;
+    }
+    
+    public ShopPreviewGUI getShopPreviewGUI() {
+        return shopPreviewGUI;
     }
     
     // ========== Listener Getters ==========

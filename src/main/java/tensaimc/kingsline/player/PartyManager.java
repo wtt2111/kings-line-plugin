@@ -4,6 +4,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
 import tensaimc.kingsline.KingsLine;
+import tensaimc.kingsline.command.PartyCommand;
 
 import java.util.*;
 
@@ -64,6 +65,18 @@ public class PartyManager {
     }
     
     /**
+     * パーティーの現在の人数を取得
+     */
+    public int getPartySize(UUID playerUuid) {
+        UUID partyId = getPartyId(playerUuid);
+        if (partyId == null) {
+            return 0;
+        }
+        Set<UUID> members = parties.get(partyId);
+        return members != null ? members.size() : 0;
+    }
+    
+    /**
      * プレイヤーを招待
      */
     public boolean invite(UUID inviterUuid, UUID inviteeUuid) {
@@ -92,11 +105,20 @@ public class PartyManager {
             return false;
         }
         
+        // パーティー人数上限チェック
+        int maxSize = plugin.getConfigManager().getPartyMaxSize();
+        Set<UUID> members = parties.get(partyId);
+        if (members != null && members.size() >= maxSize) {
+            inviter.sendMessage(ChatColor.RED + "パーティーが満員です（最大" + maxSize + "人）");
+            return false;
+        }
+        
         pendingInvites.put(inviteeUuid, partyId);
         
         inviter.sendMessage(ChatColor.GREEN + invitee.getName() + " をパーティーに招待しました。");
-        invitee.sendMessage(ChatColor.YELLOW + inviter.getName() + " からパーティーに招待されました。");
-        invitee.sendMessage(ChatColor.GRAY + "/kl party accept で承諾、/kl party deny で拒否");
+        
+        // クリック可能な招待メッセージを送信
+        PartyCommand.sendClickableInvite(invitee, inviter.getName());
         
         return true;
     }
@@ -118,6 +140,14 @@ public class PartyManager {
         
         if (!parties.containsKey(partyId)) {
             player.sendMessage(ChatColor.RED + "そのパーティーは既に存在しません。");
+            return false;
+        }
+        
+        // パーティー人数上限チェック（招待を受けている間に満員になった場合）
+        int maxSize = plugin.getConfigManager().getPartyMaxSize();
+        Set<UUID> members = parties.get(partyId);
+        if (members != null && members.size() >= maxSize) {
+            player.sendMessage(ChatColor.RED + "パーティーが満員になりました。");
             return false;
         }
         

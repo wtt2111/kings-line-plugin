@@ -71,6 +71,9 @@ public class KingManager {
         // キングバフを適用
         applyKingBuffs(klPlayer);
         
+        // 統計: キングになった回数を記録
+        plugin.getStatsDatabase().addKingTime(klPlayer.getUuid());
+        
         Player player = klPlayer.getPlayer();
         if (player != null) {
             player.sendMessage(ChatColor.GOLD + "" + ChatColor.BOLD + "あなたがキングに選ばれました！");
@@ -143,6 +146,16 @@ public class KingManager {
     }
     
     /**
+     * キングオーラループを停止
+     */
+    public void stopAuraLoop() {
+        if (auraTask != null) {
+            auraTask.cancel();
+            auraTask = null;
+        }
+    }
+    
+    /**
      * キングオーラを適用
      * キングの周囲8マスにいるチームメイトにRegeneration IIを付与
      */
@@ -210,23 +223,10 @@ public class KingManager {
             }
         }
         
-        // 敵全員にStrengthバフ
-        Team enemyTeam = kingTeam.getOpposite();
-        int buffDuration = plugin.getConfigManager().getKingDeathBuffDuration() * 20;
-        
-        TeamManager tm = plugin.getTeamManager();
-        for (KLPlayer klPlayer : tm.getTeamPlayers(gm.getPlayers(), enemyTeam)) {
-            Player player = klPlayer.getPlayer();
-            if (player != null) {
-                player.addPotionEffect(new PotionEffect(
-                        PotionEffectType.INCREASE_DAMAGE, buffDuration, 0, false, false), true);
-                player.sendMessage(ChatColor.RED + "" + ChatColor.BOLD + 
-                        "敵のキングが倒された！15秒間攻撃力UP！");
-            }
+        // キラーにシャードボーナス付与
+        if (killer != null) {
+            plugin.getShardManager().awardKingKillShards(killer);
         }
-        
-        // Shardドロップ
-        plugin.getShardManager().dropKingDeathShards(king.getPlayer().getLocation());
         
         // 通知
         gm.broadcast(ChatColor.RED + "" + ChatColor.BOLD + 

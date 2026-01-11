@@ -309,8 +309,11 @@ public class CoreListener implements Listener {
         int points = plugin.getConfigManager().getScoreCoreDestroy();
         gm.addScore(destroyer.getTeam(), points);
         
-        // Shardドロップ
-        plugin.getShardManager().dropCoreShards(coreLoc);
+        // 破壊者にシャードボーナス付与
+        plugin.getShardManager().awardCoreDestroyShards(destroyer);
+        
+        // データベースにコア破壊を記録
+        plugin.getStatsDatabase().addCoreDestroyed(destroyer.getUuid());
         
         // 全員にTitle通知
         String title = ChatColor.RED + "" + ChatColor.BOLD + "💥 コア破壊！";

@@ -19,14 +19,17 @@ game:
   # 小規模モードの閾値 (1チームあたりの人数)
   # これ以下ならBエリアのみ、超えたらA/B/C
   small-scale-threshold: 4
+  
+  # ゲームの制限時間（秒）- 50分 = 3000秒
+  time-limit: 3000
 
 # スコア設定
 score:
   # 通常キル
-  kill: 4
+  kill: 1
   
   # キングキル
-  king-kill: 20
+  king-kill: 5
   
   # キングアシスト
   king-assist: 5
@@ -98,3 +101,36 @@ element:
   
   # SP技に必要なヒット数
   sp-required-hits: 10
+
+# ロビー設定
+lobby:
+  # ロビーのカウントダウン時間 (秒) - デフォルト10分
+  countdown-time: 600
+  
+  # この人数に達したらカウントダウンを短縮
+  shortcut-players: 14
+  
+  # 短縮後のカウントダウン時間 (秒) - デフォルト2分
+  shortcut-time: 120
+  
+  # ゲーム開始に必要な最低人数
+  min-players: 10
+  
+  # ゲームの最大参加人数
+  max-players: 100
+
+# ゲーム終了演出設定
+celebration:
+  # 演出フェーズの時間（秒）
+  duration: 60
+  
+  # 花火を打ち上げるかどうか
+  fireworks: true
+  
+  # キルランキングの表示人数
+  top-killers-count: 5
+
+# パーティー設定
+party:
+  # パーティーの最大人数
+  max-size: 5

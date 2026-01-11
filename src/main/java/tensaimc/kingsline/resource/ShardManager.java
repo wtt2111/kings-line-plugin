@@ -3,18 +3,11 @@ package tensaimc.kingsline.resource;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
-import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.scheduler.BukkitRunnable;
-import org.bukkit.scheduler.BukkitTask;
 import tensaimc.kingsline.KingsLine;
-import tensaimc.kingsline.arena.Area;
-import tensaimc.kingsline.arena.Arena;
-import tensaimc.kingsline.game.GameManager;
 import tensaimc.kingsline.player.KLPlayer;
-import tensaimc.kingsline.player.Team;
 import tensaimc.kingsline.util.ActionBarUtil;
 
 import java.util.ArrayList;
@@ -23,113 +16,49 @@ import java.util.List;
 /**
  * Shard管理クラス
  * Shardはチームアップグレード用の通貨
- * - フィールドで拾う
- * - 死亡時にドロップ（敵に奪われる）
+ * - Bエリアにいると自動獲得
+ * - キル時に敵のシャードを奪取
  * - 拠点に戻ると自動貯金
+ * 
+ * ※物体としてのドロップは廃止、内部的な数値管理のみ
  */
 public class ShardManager {
     
     private final KingsLine plugin;
-    private BukkitTask spawnTask;
-    private final List<Item> spawnedShards;
     
-    // Shardのアイテム定義
+    // Shardのアイテム定義（レガシー互換用）
     public static final Material SHARD_MATERIAL = Material.PRISMARINE_SHARD;
     public static final String SHARD_DISPLAY_NAME = ChatColor.AQUA + "◈ Shard";
     
     public ShardManager(KingsLine plugin) {
         this.plugin = plugin;
-        this.spawnedShards = new ArrayList<>();
     }
     
     /**
-     * Shardスポーンループを開始
+     * Shardスポーンループを開始（現在は無効化）
+     * Bエリアでの自動獲得はAreaManagerで処理
      */
     public void startSpawnLoop() {
-        stopSpawnLoop();
-        
-        int intervalSeconds = plugin.getConfigManager().getShardSpawnInterval();
-        int intervalTicks = intervalSeconds * 20;
-        
-        spawnTask = new BukkitRunnable() {
-            @Override
-            public void run() {
-                spawnShardsAtAreas();
-            }
-        }.runTaskTimer(plugin, intervalTicks, intervalTicks);
+        // 物体スポーンは廃止 - 何もしない
     }
     
     /**
      * Shardスポーンループを停止
      */
     public void stopSpawnLoop() {
-        if (spawnTask != null) {
-            spawnTask.cancel();
-            spawnTask = null;
-        }
-        
-        // スポーンしたShardを削除
-        for (Item item : spawnedShards) {
-            if (item != null && item.isValid()) {
-                item.remove();
-            }
-        }
-        spawnedShards.clear();
+        // 物体スポーンは廃止 - 何もしない
     }
     
     /**
-     * 各エリアにShardをスポーン（スケール適用）
+     * プレイヤーにシャードを付与（内部的）
      */
-    private void spawnShardsAtAreas() {
-        GameManager gm = plugin.getGameManager();
-        Arena arena = gm.getCurrentArena();
+    public void awardShard(KLPlayer klPlayer, int amount) {
+        if (amount <= 0) return;
         
-        if (arena == null) {
-            return;
-        }
-        
-        int baseAmount = plugin.getConfigManager().getShardSpawnAmount();
-        int amount = gm.getScaledShardAmount(baseAmount);
-        
-        // Bエリア
-        Area areaB = arena.getAreaB();
-        if (areaB != null && areaB.isEnabled() && areaB.getShardSpawn() != null) {
-            spawnShard(areaB.getShardSpawn(), amount);
-        }
-        
-        // A/Cエリア (大規模モードのみ)
-        Area areaA = arena.getAreaA();
-        if (areaA != null && areaA.isEnabled() && areaA.getShardSpawn() != null) {
-            spawnShard(areaA.getShardSpawn(), amount);
-        }
-        
-        Area areaC = arena.getAreaC();
-        if (areaC != null && areaC.isEnabled() && areaC.getShardSpawn() != null) {
-            spawnShard(areaC.getShardSpawn(), amount);
-        }
-    }
-    
-    /**
-     * 指定位置にShardをスポーン
-     */
-    public void spawnShard(Location location, int amount) {
-        if (location == null || location.getWorld() == null) {
-            return;
-        }
-        
-        for (int i = 0; i < amount; i++) {
-            ItemStack shardItem = createShardItem();
-            Item item = location.getWorld().dropItem(location, shardItem);
-            item.setPickupDelay(20); // 1秒のピックアップ遅延
-            spawnedShards.add(item);
-        }
-    }
-    
-    /**
-     * プレイヤーがShardを拾った時の処理
-     */
-    public void onPickupShard(KLPlayer klPlayer, int amount) {
         klPlayer.addShardCarrying(amount);
+        
+        // 統計: シャード獲得を記録
+        plugin.getStatsDatabase().addShard(klPlayer.getUuid(), amount);
         
         Player player = klPlayer.getPlayer();
         if (player != null) {
@@ -140,25 +69,55 @@ public class ShardManager {
     }
     
     /**
-     * プレイヤーの死亡時にShardをドロップ
+     * 死亡時にシャードをキラーに移動
+     * @param victim 死亡したプレイヤー
+     * @param killer キラー（nullの場合シャードは消失）
      */
-    public void dropPlayerShards(KLPlayer klPlayer, Location location) {
-        int carrying = klPlayer.takeAllCarryingShards();
+    public void transferShardsOnDeath(KLPlayer victim, KLPlayer killer) {
+        int carrying = victim.takeAllCarryingShards();
         if (carrying <= 0) {
             return;
         }
         
-        // 1つのスタックとしてドロップ
-        ItemStack shardItem = createShardItem();
-        shardItem.setAmount(carrying);
+        Player victimPlayer = victim.getPlayer();
         
-        if (location != null && location.getWorld() != null) {
-            location.getWorld().dropItemNaturally(location, shardItem);
+        if (killer != null) {
+            // キラーにシャードを付与
+            killer.addShardCarrying(carrying);
+            plugin.getStatsDatabase().addShard(killer.getUuid(), carrying);
+            
+            Player killerPlayer = killer.getPlayer();
+            if (killerPlayer != null) {
+                String message = ChatColor.AQUA + "◈+" + carrying + 
+                        ChatColor.GOLD + " (奪取!) " +
+                        ChatColor.GRAY + "(所持: " + killer.getShardCarrying() + ")";
+                ActionBarUtil.sendActionBar(killerPlayer, message);
+                killerPlayer.sendMessage(ChatColor.AQUA + "◈ " + carrying + " Shard を奪取しました！");
+            }
+            
+            if (victimPlayer != null) {
+                victimPlayer.sendMessage(ChatColor.RED + "所持していた " + carrying + " Shardを奪われました！");
+            }
+        } else {
+            // キラーがいない場合はシャード消失
+            if (victimPlayer != null) {
+                victimPlayer.sendMessage(ChatColor.RED + "所持していた " + carrying + " Shardを失いました！");
+            }
         }
-        
-        Player player = klPlayer.getPlayer();
-        if (player != null) {
-            player.sendMessage(ChatColor.RED + "所持していた " + carrying + " Shardをドロップしました！");
+    }
+    
+    /**
+     * プレイヤーの死亡時にShardをドロップ（後方互換）
+     * → transferShardsOnDeathを使用推奨
+     */
+    public void dropPlayerShards(KLPlayer klPlayer, Location location) {
+        // 物体ドロップは廃止 - シャードは消失扱い
+        int carrying = klPlayer.takeAllCarryingShards();
+        if (carrying > 0) {
+            Player player = klPlayer.getPlayer();
+            if (player != null) {
+                player.sendMessage(ChatColor.RED + "所持していた " + carrying + " Shardを失いました！");
+            }
         }
     }
     
@@ -169,6 +128,9 @@ public class ShardManager {
         int deposited = klPlayer.depositShards();
         if (deposited > 0) {
             klPlayer.addShardDeposited(deposited);
+            
+            // 統計: シャード納品を記録
+            plugin.getStatsDatabase().addShardDeposited(klPlayer.getUuid(), deposited);
             
             Player player = klPlayer.getPlayer();
             if (player != null) {
@@ -182,25 +144,44 @@ public class ShardManager {
     }
     
     /**
-     * コア破壊時のShardドロップ（スケール適用）
+     * コア破壊時のシャード付与（破壊者に直接付与）
      */
-    public void dropCoreShards(Location location) {
+    public void awardCoreDestroyShards(KLPlayer destroyer) {
         int baseAmount = plugin.getConfigManager().getShardCoreDestroyDrop();
         int amount = plugin.getGameManager().getScaledShardAmount(baseAmount);
-        spawnShard(location, amount);
+        
+        awardShard(destroyer, amount);
+        
+        Player player = destroyer.getPlayer();
+        if (player != null) {
+            player.sendMessage(ChatColor.GOLD + "★ コア破壊ボーナス: " + ChatColor.AQUA + "◈" + amount);
+        }
     }
     
     /**
-     * キング死亡時のShardドロップ（スケール適用）
+     * キング撃破時のシャード付与（キラーに直接付与）
      */
-    public void dropKingDeathShards(Location location) {
+    public void awardKingKillShards(KLPlayer killer) {
         int baseAmount = plugin.getConfigManager().getShardKingDeathDrop();
         int amount = plugin.getGameManager().getScaledShardAmount(baseAmount);
-        spawnShard(location, amount);
+        
+        awardShard(killer, amount);
+        
+        Player player = killer.getPlayer();
+        if (player != null) {
+            player.sendMessage(ChatColor.GOLD + "★ キング撃破ボーナス: " + ChatColor.AQUA + "◈" + amount);
+        }
     }
     
     /**
-     * Shardアイテムを作成
+     * プレイヤーがShardを拾った時の処理（レガシー互換）
+     */
+    public void onPickupShard(KLPlayer klPlayer, int amount) {
+        awardShard(klPlayer, amount);
+    }
+    
+    /**
+     * Shardアイテムを作成（レガシー互換用）
      */
     public ItemStack createShardItem() {
         ItemStack item = new ItemStack(SHARD_MATERIAL);
@@ -209,9 +190,6 @@ public class ShardManager {
         
         List<String> lore = new ArrayList<>();
         lore.add(ChatColor.GRAY + "チームアップグレード用の通貨");
-        lore.add("");
-        lore.add(ChatColor.YELLOW + "拠点に持ち帰ると貯金されます");
-        lore.add(ChatColor.RED + "死亡すると所持分をドロップ！");
         meta.setLore(lore);
         
         item.setItemMeta(meta);
@@ -219,7 +197,7 @@ public class ShardManager {
     }
     
     /**
-     * アイテムがShardかどうか判定
+     * アイテムがShardかどうか判定（レガシー互換用）
      */
     public boolean isShard(ItemStack item) {
         if (item == null || item.getType() != SHARD_MATERIAL) {

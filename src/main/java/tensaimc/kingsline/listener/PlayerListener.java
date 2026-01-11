@@ -11,6 +11,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -39,10 +40,52 @@ public class PlayerListener implements Listener {
         Player player = event.getPlayer();
         GameManager gm = plugin.getGameManager();
         
+        // ロビー待機中の場合、自動的に参加
+        if (gm.getState() == GameState.LOBBY) {
+            gm.onPlayerJoinLobby(player);
+        }
         // ゲーム中に参加した場合
-        if (gm.getState() == GameState.RUNNING) {
+        else if (gm.getState() == GameState.RUNNING || gm.getState() == GameState.STARTING) {
             player.sendMessage(ChatColor.YELLOW + "ゲームが進行中です。観戦モードになります。");
             player.setGameMode(GameMode.SPECTATOR);
+        }
+    }
+    
+    /**
+     * スペクテイター（途中参加者）の移動制限
+     * 座標0,0から500ブロック以上離れたら0,0にテレポート
+     */
+    @EventHandler
+    public void onSpectatorMove(PlayerMoveEvent event) {
+        Player player = event.getPlayer();
+        
+        // スペクテイターモードでない場合はスキップ
+        if (player.getGameMode() != GameMode.SPECTATOR) {
+            return;
+        }
+        
+        GameManager gm = plugin.getGameManager();
+        
+        // ゲーム中でない場合はスキップ
+        if (!gm.isState(GameState.RUNNING, GameState.STARTING)) {
+            return;
+        }
+        
+        // ゲーム参加者（死亡中のリスポーン待ち）はスキップ
+        KLPlayer klPlayer = gm.getPlayer(player);
+        if (klPlayer != null) {
+            return;
+        }
+        
+        // 座標0,0からの水平距離をチェック
+        Location loc = player.getLocation();
+        double distanceFromOrigin = Math.sqrt(loc.getX() * loc.getX() + loc.getZ() * loc.getZ());
+        
+        if (distanceFromOrigin > 500) {
+            // 0,0にテレポート（Y座標は現在の高さを維持）
+            Location teleportLoc = new Location(loc.getWorld(), 0, loc.getY(), 0, loc.getYaw(), loc.getPitch());
+            player.teleport(teleportLoc);
+            player.sendMessage(ChatColor.YELLOW + "観戦エリアの外に出たため、中心に戻されました。");
         }
     }
     
@@ -51,14 +94,20 @@ public class PlayerListener implements Listener {
         Player player = event.getPlayer();
         GameManager gm = plugin.getGameManager();
         
+        // ロビー待機中の場合
+        if (gm.getState() == GameState.LOBBY) {
+            gm.onPlayerLeaveLobby(player);
+            return;
+        }
+        
         KLPlayer klPlayer = gm.getPlayer(player);
         if (klPlayer != null) {
             // ゲーム中に抜けた場合
             if (gm.isState(GameState.RUNNING, GameState.STARTING)) {
                 klPlayer.setAlive(false);
                 
-                // 所持Shard/Luminaドロップ
-                plugin.getShardManager().dropPlayerShards(klPlayer, player.getLocation());
+                // 所持Shard/Luminaは消失（キラーがいないため）
+                plugin.getShardManager().transferShardsOnDeath(klPlayer, null);
                 plugin.getLuminaManager().dropPlayerLumina(klPlayer, player.getLocation());
             }
         }
@@ -116,10 +165,10 @@ public class PlayerListener implements Listener {
             }
         }
         
-        // 所持Shard/Luminaドロップ
-        Location deathLoc = player.getLocation();
-        plugin.getShardManager().dropPlayerShards(klPlayer, deathLoc);
-        plugin.getLuminaManager().dropPlayerLumina(klPlayer, deathLoc);
+        // 所持Shard/Luminaをキラーに移動
+        KLPlayer klKillerForShard = (killer != null) ? gm.getPlayer(killer) : null;
+        plugin.getShardManager().transferShardsOnDeath(klPlayer, klKillerForShard);
+        plugin.getLuminaManager().dropPlayerLumina(klPlayer, player.getLocation());
         
         // アイテムドロップ禁止（死んだ人はアイテムを失うが、地面にはドロップしない）
         event.getDrops().clear();
@@ -368,6 +417,12 @@ public class PlayerListener implements Listener {
                 // エレメント選択フェーズ中は使用不可
                 player.sendMessage(ChatColor.RED + "キング投票フェーズになったら !king で立候補できます。");
             }
+            return;
+        }
+        
+        // チャットシステムで処理
+        if (plugin.getChatManager().handleChat(player, message)) {
+            event.setCancelled(true);
         }
     }
 }

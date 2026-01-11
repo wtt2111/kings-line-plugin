@@ -144,6 +144,9 @@ public class ElementSelectGUI {
                 // パッシブ効果を適用
                 plugin.getElementManager().applyPassiveEffects(klPlayer);
                 
+                // 統計: エレメント選択を記録
+                plugin.getStatsDatabase().addElementPick(player.getUniqueId(), selected);
+                
                 player.sendMessage(selected.getColor() + selected.getName() + 
                         ChatColor.GREEN + " を選択しました！");
                 player.closeInventory();

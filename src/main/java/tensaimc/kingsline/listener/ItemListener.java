@@ -98,6 +98,18 @@ public class ItemListener implements Listener {
         
         GameManager gm = plugin.getGameManager();
         
+        // ロビーヘルプアイテム（ゲームガイド）
+        if (isHelpItem(item)) {
+            event.setCancelled(true);
+            
+            if (gm.isState(GameState.LOBBY)) {
+                plugin.getLobbyHelpGUI().open(player);
+            } else {
+                player.sendMessage(ChatColor.RED + "ゲームガイドはロビー待機中のみ使用可能です。");
+            }
+            return;
+        }
+        
         // エレメント選択アイテム
         if (isElementSelector(item)) {
             event.setCancelled(true);
@@ -334,7 +346,7 @@ public class ItemListener implements Listener {
     }
     
     /**
-     * 釣り竿使用時（グラップルフック）
+     * 釣り竿使用時（グラップルフック + 統計）
      */
     @EventHandler
     public void onPlayerFish(PlayerFishEvent event) {
@@ -345,13 +357,23 @@ public class ItemListener implements Listener {
             return;
         }
         
+        GameManager gm = plugin.getGameManager();
+        
+        // 統計: 釣り竿を投げた時にカウント（ゲーム中のみ）
+        PlayerFishEvent.State state = event.getState();
+        if (state == PlayerFishEvent.State.FISHING && gm.isState(GameState.RUNNING)) {
+            KLPlayer klPlayer = gm.getPlayer(player);
+            if (klPlayer != null) {
+                plugin.getStatsDatabase().addFishingRodUse(player.getUniqueId());
+            }
+        }
+        
         // グラップルフックかどうか判定
         if (!MobilityItems.GrappleHook.isGrappleHook(item)) {
             return;
         }
         
         // フックが何かに当たった時、またはフックを戻した時に発動
-        PlayerFishEvent.State state = event.getState();
         if (state == PlayerFishEvent.State.IN_GROUND || 
             state == PlayerFishEvent.State.FAILED_ATTEMPT ||
             state == PlayerFishEvent.State.CAUGHT_ENTITY) {
@@ -413,6 +435,19 @@ public class ItemListener implements Listener {
             return false;
         }
         return item.getItemMeta().getDisplayName().contains("キング投票");
+    }
+    
+    /**
+     * ロビーヘルプアイテムかどうか
+     */
+    private boolean isHelpItem(ItemStack item) {
+        if (item == null || item.getType() != GameManager.HELP_ITEM_MATERIAL) {
+            return false;
+        }
+        if (!item.hasItemMeta() || !item.getItemMeta().hasDisplayName()) {
+            return false;
+        }
+        return item.getItemMeta().getDisplayName().contains("ゲームガイド");
     }
     
     /**

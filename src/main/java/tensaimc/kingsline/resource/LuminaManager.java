@@ -39,6 +39,9 @@ public class LuminaManager {
         int amount = plugin.getConfigManager().getLuminaPerKill();
         killer.addLuminaCarrying(amount);
         
+        // 統計: ルミナ獲得を記録
+        plugin.getStatsDatabase().addLumina(killer.getUuid(), amount);
+        
         Player player = killer.getPlayer();
         if (player != null) {
             String message = ChatColor.GREEN + "+" + points + "pt " + 
@@ -75,6 +78,9 @@ public class LuminaManager {
      */
     public void onPickupLumina(KLPlayer klPlayer, int amount) {
         klPlayer.addLuminaCarrying(amount);
+        
+        // 統計: ルミナ獲得を記録
+        plugin.getStatsDatabase().addLumina(klPlayer.getUuid(), amount);
         
         Player player = klPlayer.getPlayer();
         if (player != null) {

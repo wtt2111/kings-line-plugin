@@ -110,8 +110,9 @@ public class CombatListener implements Listener {
         }
         
         // リスキル対策：自チームのスポーン地点から半径20ブロック以内は無敵
+        // ただし、リスポーン不可（500pt取られた）チームは無敵解除
         Arena arena = gm.getCurrentArena();
-        if (arena != null) {
+        if (arena != null && gm.canTeamRespawn(klVictim.getTeam())) {
             Location spawnLoc = arena.getSpawn(klVictim.getTeam());
             if (spawnLoc != null && victim.getWorld().equals(spawnLoc.getWorld())) {
                 double distance = victim.getLocation().distance(spawnLoc);
@@ -164,6 +165,10 @@ public class CombatListener implements Listener {
         damage *= em.getAttackDamageMultiplier(klAttacker);
         damage *= em.getDefenseDamageMultiplier(klVictim);
         event.setDamage(Math.max(0, damage));
+        
+        // 統計: HIT数とダメージを記録
+        plugin.getStatsDatabase().addHit(attacker.getUniqueId());
+        plugin.getStatsDatabase().addDamage(attacker.getUniqueId(), (int) Math.round(damage));
         
         // Fire: 炎上判定
         em.checkFireIgnite(klAttacker, victim);

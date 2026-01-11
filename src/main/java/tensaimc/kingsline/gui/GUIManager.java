@@ -36,7 +36,13 @@ public class GUIManager {
         SHOP,
         UPGRADE,
         KING_VOTE,
-        NPC_MENU
+        NPC_MENU,
+        // ロビーヘルプ系
+        LOBBY_HELP,
+        GAME_RULES,
+        COMMAND_HELP,
+        ELEMENT_INFO,
+        SHOP_PREVIEW
     }
     
     /**

@@ -264,6 +264,9 @@ public class ElementManager {
         
         klPlayer.useSpAbility(cooldown);
         
+        // 統計: SP技使用を記録
+        plugin.getStatsDatabase().addSkillUse(player.getUniqueId());
+        
         // 経験値バー（SPゲージ表示）をリセット
         player.setLevel(0);
         player.setExp(0f);

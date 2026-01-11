@@ -7,6 +7,7 @@ import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.scoreboard.*;
 import tensaimc.kingsline.KingsLine;
+import tensaimc.kingsline.arena.Arena;
 import tensaimc.kingsline.game.GameManager;
 import tensaimc.kingsline.game.GameState;
 import tensaimc.kingsline.listener.CoreListener;
@@ -14,11 +15,17 @@ import tensaimc.kingsline.player.KLPlayer;
 import tensaimc.kingsline.player.Team;
 import tensaimc.kingsline.util.BossBarManager;
 
+import java.text.SimpleDateFormat;
+import java.util.Date;
+
 /**
  * スコアボード管理クラス
  * サイドバー、ボスバーの表示を制御
  */
 public class ScoreboardManager {
+    
+    private static final String SERVER_IP = "mc.miyabimc.net";
+    private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy/MM/dd");
     
     private final KingsLine plugin;
     private final BossBarManager bossBarManager;
@@ -76,6 +83,15 @@ public class ScoreboardManager {
     private void updateAllScoreboards() {
         GameManager gm = plugin.getGameManager();
         
+        // LOBBY状態：全オンラインプレイヤーにロビースコアボードを表示
+        if (gm.isState(GameState.LOBBY)) {
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                updateLobbyScoreboard(player);
+            }
+            return;
+        }
+        
+        // RUNNING/STARTING状態：ゲーム参加者にゲームスコアボードを表示
         if (!gm.isState(GameState.RUNNING, GameState.STARTING)) {
             return;
         }
@@ -89,7 +105,82 @@ public class ScoreboardManager {
     }
     
     /**
-     * プレイヤーのスコアボードを更新
+     * ロビースコアボードを更新（カウントダウン中）
+     */
+    private void updateLobbyScoreboard(Player player) {
+        GameManager gm = plugin.getGameManager();
+        
+        Scoreboard scoreboard = player.getScoreboard();
+        if (scoreboard == null || scoreboard.equals(Bukkit.getScoreboardManager().getMainScoreboard())) {
+            scoreboard = Bukkit.getScoreboardManager().getNewScoreboard();
+            player.setScoreboard(scoreboard);
+        }
+        
+        // 既存のObjectiveを削除
+        Objective oldObjective = scoreboard.getObjective("kingsline");
+        if (oldObjective != null) {
+            oldObjective.unregister();
+        }
+        
+        // 新規Objective作成
+        Objective objective = scoreboard.registerNewObjective("kingsline", "dummy");
+        objective.setDisplayName(ChatColor.GOLD + "" + ChatColor.BOLD + "⚔ KING'S LINE ⚔");
+        objective.setDisplaySlot(DisplaySlot.SIDEBAR);
+        
+        int line = 12;
+        
+        // ヘッダー区切り線
+        setLine(objective, line--, ChatColor.DARK_GRAY + "━━━━━━━━━━━━━━━━━━━━━━");
+        
+        // 日付
+        setLine(objective, line--, ChatColor.GRAY + " " + DATE_FORMAT.format(new Date()));
+        setLine(objective, line--, "");
+        
+        // プレイヤー数
+        int playerCount = gm.getPlayerCount();
+        int maxPlayers = plugin.getConfigManager().getLobbyMaxPlayers();
+        setLine(objective, line--, ChatColor.WHITE + " プレイヤー: " + ChatColor.GREEN + playerCount + ChatColor.GRAY + "/" + maxPlayers);
+        setLine(objective, line--, " ");
+        
+        // カウントダウン
+        int countdown = gm.getLobbyCountdown();
+        String timeStr = formatTime(countdown);
+        String countdownColor = countdown <= 10 ? ChatColor.RED.toString() : 
+                               countdown <= 30 ? ChatColor.YELLOW.toString() : 
+                               ChatColor.GREEN.toString();
+        setLine(objective, line--, ChatColor.WHITE + " 開始まで: " + countdownColor + timeStr);
+        
+        // 開始条件
+        int minPlayers = plugin.getConfigManager().getLobbyMinPlayers();
+        if (playerCount < minPlayers) {
+            int needed = minPlayers - playerCount;
+            setLine(objective, line--, ChatColor.YELLOW + " あと" + ChatColor.WHITE + needed + "人" + ChatColor.YELLOW + "で開始");
+        } else {
+            setLine(objective, line--, ChatColor.GREEN + " 開始準備完了！");
+        }
+        setLine(objective, line--, "  ");
+        
+        // アリーナ名
+        Arena arena = gm.getCurrentArena();
+        String arenaName = arena != null ? arena.getName() : "未設定";
+        setLine(objective, line--, ChatColor.WHITE + " マップ: " + ChatColor.AQUA + arenaName);
+        
+        // フッター
+        setLine(objective, line--, ChatColor.DARK_GRAY + "━━━━━━━━━━━━━━━━━━━━━━");
+        setLine(objective, line--, ChatColor.YELLOW + " " + SERVER_IP);
+    }
+    
+    /**
+     * 時間をフォーマット（MM:SS）
+     */
+    private String formatTime(int seconds) {
+        int min = seconds / 60;
+        int sec = seconds % 60;
+        return String.format("%02d:%02d", min, sec);
+    }
+    
+    /**
+     * プレイヤーのスコアボードを更新（ゲーム中）
      */
     private void updatePlayerScoreboard(Player player, KLPlayer klPlayer) {
         GameManager gm = plugin.getGameManager();
@@ -108,13 +199,20 @@ public class ScoreboardManager {
         
         // 新規Objective作成
         Objective objective = scoreboard.registerNewObjective("kingsline", "dummy");
-        objective.setDisplayName(ChatColor.GOLD + "" + ChatColor.BOLD + "⚔ King's Line ⚔");
+        objective.setDisplayName(ChatColor.GOLD + "" + ChatColor.BOLD + "⚔ KING'S LINE ⚔");
         objective.setDisplaySlot(DisplaySlot.SIDEBAR);
         
-        int line = 15;
+        int line = 14;
         
-        // 区切り線
-        setLine(objective, line--, ChatColor.DARK_GRAY + "━━━━━━━━━━━");
+        // ヘッダー区切り線
+        setLine(objective, line--, ChatColor.DARK_GRAY + "━━━━━━━━━━━━━━━━━━━━━━");
+        
+        // 残り時間
+        int timeRemaining = gm.getGameTimeRemaining();
+        String timeColor = timeRemaining <= 300 ? ChatColor.RED.toString() : 
+                          timeRemaining <= 600 ? ChatColor.YELLOW.toString() : 
+                          ChatColor.GREEN.toString();
+        setLine(objective, line--, ChatColor.WHITE + " 残り: " + timeColor + formatTime(timeRemaining));
         setLine(objective, line--, "");
         
         // スコア（リスポーン不可チームは残り人数を表示）
@@ -123,23 +221,21 @@ public class ScoreboardManager {
         boolean blueCanRespawn = gm.canTeamRespawn(Team.BLUE);
         boolean redCanRespawn = gm.canTeamRespawn(Team.RED);
         
-        // BLUEチーム
+        // BLUEチーム - スコアは常に表示、リスポーン不可時は残り人数も追加
         if (!blueCanRespawn) {
             int blueAlive = plugin.getTeamManager().getAliveCount(gm.getPlayers(), Team.BLUE);
-            setLine(objective, line--, ChatColor.BLUE + "◆ BLUE: " + ChatColor.YELLOW + "残り" + blueAlive + "人");
+            setLine(objective, line--, ChatColor.BLUE + " ◆ BLUE: " + ChatColor.WHITE + blueScore + "pt " + ChatColor.YELLOW + "(残" + blueAlive + "人)");
         } else {
-            setLine(objective, line--, ChatColor.BLUE + "◆ BLUE: " + ChatColor.WHITE + blueScore + "pt");
+            setLine(objective, line--, ChatColor.BLUE + " ◆ BLUE: " + ChatColor.WHITE + blueScore + "pt");
         }
         
-        // REDチーム
+        // REDチーム - スコアは常に表示、リスポーン不可時は残り人数も追加
         if (!redCanRespawn) {
             int redAlive = plugin.getTeamManager().getAliveCount(gm.getPlayers(), Team.RED);
-            setLine(objective, line--, ChatColor.RED + "◆ RED: " + ChatColor.YELLOW + "残り" + redAlive + "人");
+            setLine(objective, line--, ChatColor.RED + " ◆ RED: " + ChatColor.WHITE + redScore + "pt " + ChatColor.YELLOW + "(残" + redAlive + "人)");
         } else {
-            setLine(objective, line--, ChatColor.RED + "◆ RED: " + ChatColor.WHITE + redScore + "pt");
+            setLine(objective, line--, ChatColor.RED + " ◆ RED: " + ChatColor.WHITE + redScore + "pt");
         }
-        
-        setLine(objective, line--, " ");
         
         // コア状態
         CoreListener coreListener = getCoreListener();
@@ -148,39 +244,42 @@ public class ScoreboardManager {
         String redCore = coreListener != null && coreListener.isRedCoreDestroyed() ? 
                 ChatColor.DARK_RED + "✗" : ChatColor.GREEN + "✓";
         
-        setLine(objective, line--, ChatColor.GRAY + "コア: " + ChatColor.BLUE + "B" + blueCore + 
+        setLine(objective, line--, ChatColor.GRAY + " コア: " + ChatColor.BLUE + "B" + blueCore + 
                 ChatColor.GRAY + " | " + ChatColor.RED + "R" + redCore);
+        setLine(objective, line--, " ");
         
-        setLine(objective, line--, ChatColor.DARK_GRAY + "━━━━━━━━━━━");
-        setLine(objective, line--, "  ");
-        
-        // 個人情報 - Shard（所持/貯金）
-        setLine(objective, line--, ChatColor.AQUA + "◈ Shard: " + ChatColor.WHITE + 
-                klPlayer.getShardCarrying() + ChatColor.GRAY + " / " + 
+        // リソース（所持/貯金）
+        setLine(objective, line--, ChatColor.AQUA + " Shard: " + ChatColor.WHITE + 
+                klPlayer.getShardCarrying() + ChatColor.GRAY + "/" + 
                 ChatColor.GREEN + klPlayer.getShardSaved());
         
-        // 個人情報 - Lumina（所持/貯金）
-        setLine(objective, line--, ChatColor.LIGHT_PURPLE + "✦ Lumina: " + ChatColor.WHITE + 
-                klPlayer.getLuminaCarrying() + ChatColor.GRAY + " / " + 
+        setLine(objective, line--, ChatColor.LIGHT_PURPLE + " Lumina: " + ChatColor.WHITE + 
+                klPlayer.getLuminaCarrying() + ChatColor.GRAY + "/" + 
                 ChatColor.GREEN + klPlayer.getLuminaSaved());
-        setLine(objective, line--, "   ");
+        setLine(objective, line--, "  ");
         
-        // エレメント表示
+        // エレメント・K/D
         String elementDisplay = klPlayer.getElement() != null ? 
                 klPlayer.getElement().getColor() + klPlayer.getElement().getDisplayName() : 
                 ChatColor.GRAY + "未選択";
-        setLine(objective, line--, ChatColor.YELLOW + "属性: " + elementDisplay);
+        setLine(objective, line--, ChatColor.YELLOW + " 属性: " + elementDisplay);
         
-        setLine(objective, line--, ChatColor.GREEN + "K/D: " + ChatColor.WHITE + 
-                klPlayer.getKillsThisGame() + " / " + klPlayer.getDeathsThisGame());
+        setLine(objective, line--, ChatColor.GREEN + " K/D: " + ChatColor.WHITE + 
+                klPlayer.getKillsThisGame() + ChatColor.GRAY + "/" + ChatColor.WHITE + klPlayer.getDeathsThisGame());
         
-        setLine(objective, line--, ChatColor.DARK_GRAY + "━━━━━━━━━━━");
+        // フッター
+        setLine(objective, line--, ChatColor.DARK_GRAY + "━━━━━━━━━━━━━━━━━━━━━━");
+        setLine(objective, line--, ChatColor.YELLOW + " " + SERVER_IP);
     }
     
     /**
      * スコアボードにラインを設定
      */
     private void setLine(Objective objective, int score, String text) {
+        // スコアが負の場合は無視（範囲外エラー防止）
+        if (score < 0) {
+            return;
+        }
         // スコアボードの制限（16文字）回避のためにユニークな接頭辞を追加
         String unique = ChatColor.values()[score % ChatColor.values().length].toString();
         String displayText = text;

@@ -2,13 +2,17 @@ package tensaimc.kingsline.game;
 
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
+import org.bukkit.Color;
+import org.bukkit.FireworkEffect;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.World;
+import org.bukkit.entity.Firework;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.FireworkMeta;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.LeatherArmorMeta;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -41,6 +45,12 @@ public class GameManager {
     // タスク
     private BukkitTask startingTask;
     private BukkitTask gameLoopTask;
+    private BukkitTask lobbyTask;
+    
+    // ロビー関連
+    private boolean autoLoopEnabled;
+    private int lobbyCountdown;
+    private boolean lobbyShortcutTriggered;
     
     // ゲームデータ
     private int blueScore;
@@ -53,9 +63,16 @@ public class GameManager {
     private final Set<UUID> kingCandidatesRed;
     private boolean votingPhase;
     
+    // ゲーム制限時間
+    private int gameTimeRemaining;
+    
     // エレメント選択アイテム
     public static final Material ELEMENT_SELECT_MATERIAL = Material.NETHER_STAR;
     public static final String ELEMENT_SELECT_NAME = ChatColor.LIGHT_PURPLE + "" + ChatColor.BOLD + "エレメント選択";
+    
+    // ロビーヘルプアイテム
+    public static final Material HELP_ITEM_MATERIAL = Material.BOOK;
+    public static final String HELP_ITEM_NAME = ChatColor.YELLOW + "" + ChatColor.BOLD + "ゲームガイド";
     
     public GameManager(KingsLine plugin) {
         this.plugin = plugin;
@@ -77,6 +94,8 @@ public class GameManager {
         votingPhase = false;
         kingCandidatesBlue.clear();
         kingCandidatesRed.clear();
+        lobbyShortcutTriggered = false;
+        gameTimeRemaining = 0;
         
         if (startingTask != null) {
             startingTask.cancel();
@@ -86,12 +105,19 @@ public class GameManager {
             gameLoopTask.cancel();
             gameLoopTask = null;
         }
+        if (lobbyTask != null) {
+            lobbyTask.cancel();
+            lobbyTask = null;
+        }
         
         if (plugin.getTeamManager() != null) {
             plugin.getTeamManager().reset();
         }
         if (plugin.getCoreListener() != null) {
             plugin.getCoreListener().reset();
+        }
+        if (plugin.getChatManager() != null) {
+            plugin.getChatManager().reset();
         }
     }
     
@@ -125,6 +151,8 @@ public class GameManager {
     public void addPlayer(Player player) {
         if (!players.containsKey(player.getUniqueId())) {
             players.put(player.getUniqueId(), new KLPlayer(player.getUniqueId()));
+            // データベースにプレイヤーを登録
+            plugin.getStatsDatabase().ensurePlayer(player.getUniqueId(), player.getName());
         }
     }
     
@@ -134,6 +162,13 @@ public class GameManager {
     
     public int getPlayerCount() {
         return players.size();
+    }
+    
+    /**
+     * ロビーカウントダウンの残り秒数を取得
+     */
+    public int getLobbyCountdown() {
+        return lobbyCountdown;
     }
     
     public List<KLPlayer> getOnlinePlayers() {
@@ -268,13 +303,317 @@ public class GameManager {
         return votingPhase;
     }
     
+    /**
+     * ゲーム残り時間を取得（秒）
+     */
+    public int getGameTimeRemaining() {
+        return gameTimeRemaining;
+    }
+    
+    // ========== Lobby System ==========
+    
+    /**
+     * 自動ループを開始
+     * /kl start で呼ばれる
+     */
+    public boolean startAutoLoop() {
+        if (autoLoopEnabled) {
+            return false;
+        }
+        
+        // アリーナをセット
+        currentArena = plugin.getArenaConfig().getCurrentArena();
+        if (currentArena == null || !currentArena.isValid()) {
+            broadcast(ChatColor.RED + "アリーナが正しく設定されていません。");
+            return false;
+        }
+        
+        autoLoopEnabled = true;
+        startLobbyCountdown();
+        return true;
+    }
+    
+    /**
+     * デバッグ用: 人数を無視してゲームを強制開始
+     */
+    public boolean forceStartGame() {
+        if (state == GameState.RUNNING || state == GameState.STARTING) {
+            return false;
+        }
+        
+        // アリーナをセット
+        currentArena = plugin.getArenaConfig().getCurrentArena();
+        if (currentArena == null || !currentArena.isValid()) {
+            broadcast(ChatColor.RED + "アリーナが正しく設定されていません。");
+            return false;
+        }
+        
+        // ロビータスクが動いていたら停止
+        if (lobbyTask != null) {
+            lobbyTask.cancel();
+            lobbyTask = null;
+        }
+        
+        autoLoopEnabled = true; // ゲーム終了後の自動ループを有効化
+        
+        // オンラインプレイヤーを追加
+        players.clear();
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            addPlayer(player);
+        }
+        
+        if (players.isEmpty()) {
+            broadcast(ChatColor.RED + "プレイヤーがいません。");
+            return false;
+        }
+        
+        broadcast(ChatColor.LIGHT_PURPLE + "" + ChatColor.BOLD + "[DEBUG] " + 
+                ChatColor.YELLOW + "ゲームを強制開始します！（プレイヤー: " + players.size() + "人）");
+        
+        // 直接ゲーム開始（通常のstartGameを呼ぶ）
+        return startGame();
+    }
+    
+    /**
+     * 自動ループを停止
+     * /kl stop で呼ばれる
+     */
+    public void stopAutoLoop() {
+        autoLoopEnabled = false;
+        
+        if (lobbyTask != null) {
+            lobbyTask.cancel();
+            lobbyTask = null;
+        }
+        
+        // ゲーム中なら強制終了（統計保存なし）
+        if (state == GameState.STARTING || state == GameState.RUNNING) {
+            forceStopWithoutStats();
+        } else if (state == GameState.LOBBY) {
+            state = GameState.WAITING;
+            broadcast(ChatColor.YELLOW + "自動ゲームループが停止されました。");
+            
+            // スコアボード停止
+            plugin.getScoreboardManager().stop();
+            
+            // プレイヤーをロビーへ
+            Location lobby = currentArena != null ? currentArena.getLobby() : null;
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                if (lobby != null) {
+                    player.teleport(lobby);
+                }
+            }
+            players.clear();
+        }
+    }
+    
+    /**
+     * ロビーカウントダウンを開始
+     */
+    public void startLobbyCountdown() {
+        if (!autoLoopEnabled) {
+            return;
+        }
+        
+        state = GameState.LOBBY;
+        lobbyShortcutTriggered = false;
+        lobbyCountdown = plugin.getConfigManager().getLobbyCountdownTime();
+        
+        // 既存プレイヤーをロビーに追加
+        players.clear();
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            addPlayer(player);
+            
+            // ロビー位置へテレポート
+            Location lobby = currentArena != null ? currentArena.getLobby() : null;
+            if (lobby != null) {
+                player.teleport(lobby);
+            }
+            
+            // ヘルプアイテムを配布
+            giveHelpItem(player);
+        }
+        
+        broadcast(ChatColor.GREEN + "========================================");
+        broadcast(ChatColor.GREEN + "" + ChatColor.BOLD + "  ⚔ KING'S LINE ⚔");
+        broadcast(ChatColor.YELLOW + "  次のゲームまで " + formatTime(lobbyCountdown));
+        broadcast(ChatColor.GRAY + "  最低 " + plugin.getConfigManager().getLobbyMinPlayers() + " 人で開始");
+        broadcast(ChatColor.GREEN + "========================================");
+        
+        // スコアボード更新開始
+        plugin.getScoreboardManager().start();
+        
+        // カウントダウンタスク
+        lobbyTask = new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (state != GameState.LOBBY) {
+                    cancel();
+                    return;
+                }
+                
+                lobbyCountdown--;
+                
+                // 人数チェック
+                int playerCount = getPlayerCount();
+                int minPlayers = plugin.getConfigManager().getLobbyMinPlayers();
+                int shortcutPlayers = plugin.getConfigManager().getLobbyShortcutPlayers();
+                int shortcutTime = plugin.getConfigManager().getLobbyShortcutTime();
+                
+                // 14人で短縮（一度だけ）
+                if (!lobbyShortcutTriggered && playerCount >= shortcutPlayers && lobbyCountdown > shortcutTime) {
+                    lobbyShortcutTriggered = true;
+                    lobbyCountdown = shortcutTime;
+                    
+                    broadcast(ChatColor.GOLD + "========================================");
+                    broadcast(ChatColor.GOLD + "" + ChatColor.BOLD + "  ⚡ " + shortcutPlayers + "人到達！");
+                    broadcast(ChatColor.YELLOW + "  カウントダウンが " + formatTime(shortcutTime) + " に短縮されました！");
+                    broadcast(ChatColor.GOLD + "========================================");
+                    
+                    // 全員にサウンド
+                    for (Player p : Bukkit.getOnlinePlayers()) {
+                        p.playSound(p.getLocation(), Sound.LEVEL_UP, 1.0f, 1.5f);
+                    }
+                }
+                
+                // アクションバーで残り時間表示
+                for (Player p : Bukkit.getOnlinePlayers()) {
+                    String countdownColor = lobbyCountdown <= 10 ? ChatColor.RED.toString() : 
+                                           lobbyCountdown <= 30 ? ChatColor.YELLOW.toString() : 
+                                           ChatColor.GREEN.toString();
+                    
+                    String statusText;
+                    if (playerCount < minPlayers) {
+                        int needed = minPlayers - playerCount;
+                        statusText = ChatColor.RED + "あと " + needed + " 人必要！";
+                    } else {
+                        statusText = ChatColor.GREEN + "開始準備完了！";
+                    }
+                    
+                    ActionBarUtil.sendActionBar(p, 
+                            ChatColor.GOLD + "⚔ KING'S LINE ⚔ " + 
+                            ChatColor.WHITE + "| " + countdownColor + formatTime(lobbyCountdown) + 
+                            ChatColor.WHITE + " | " + 
+                            ChatColor.AQUA + playerCount + "/" + plugin.getConfigManager().getLobbyMaxPlayers() + "人" +
+                            ChatColor.WHITE + " | " + statusText);
+                }
+                
+                // カウントダウン通知
+                if (lobbyCountdown == 300 || lobbyCountdown == 120 || lobbyCountdown == 60 || 
+                    lobbyCountdown == 30 || lobbyCountdown == 10 || lobbyCountdown == 5 || 
+                    lobbyCountdown == 4 || lobbyCountdown == 3 || lobbyCountdown == 2 || lobbyCountdown == 1) {
+                    
+                    broadcast(ChatColor.YELLOW + "ゲーム開始まで " + ChatColor.WHITE + formatTime(lobbyCountdown));
+                    
+                    // サウンド
+                    float pitch = lobbyCountdown <= 5 ? 1.5f : 1.0f;
+                    for (Player p : Bukkit.getOnlinePlayers()) {
+                        p.playSound(p.getLocation(), Sound.NOTE_PLING, 1.0f, pitch);
+                    }
+                }
+                
+                // カウント終了
+                if (lobbyCountdown <= 0) {
+                    cancel();
+                    lobbyTask = null;
+                    
+                    if (playerCount >= minPlayers) {
+                        // ゲーム開始
+                        startGame();
+                    } else {
+                        // 人数不足、リスタート
+                        broadcast(ChatColor.RED + "========================================");
+                        broadcast(ChatColor.RED + "" + ChatColor.BOLD + "  ⚠ 人数不足！");
+                        broadcast(ChatColor.YELLOW + "  " + minPlayers + "人以上でゲーム開始できます");
+                        broadcast(ChatColor.GRAY + "  カウントダウンをリスタートします...");
+                        broadcast(ChatColor.RED + "========================================");
+                        
+                        for (Player p : Bukkit.getOnlinePlayers()) {
+                            p.playSound(p.getLocation(), Sound.VILLAGER_NO, 1.0f, 1.0f);
+                        }
+                        
+                        // 少し待ってからリスタート
+                        new BukkitRunnable() {
+                            @Override
+                            public void run() {
+                                if (autoLoopEnabled && state == GameState.LOBBY) {
+                                    startLobbyCountdown();
+                                }
+                            }
+                        }.runTaskLater(plugin, 60L); // 3秒後
+                    }
+                }
+            }
+        }.runTaskTimer(plugin, 20L, 20L); // 1秒ごと
+    }
+    
+    /**
+     * ロビーにプレイヤーを追加（参加時）
+     */
+    public void onPlayerJoinLobby(Player player) {
+        if (state != GameState.LOBBY) {
+            return;
+        }
+        
+        int maxPlayers = plugin.getConfigManager().getLobbyMaxPlayers();
+        if (getPlayerCount() >= maxPlayers) {
+            player.sendMessage(ChatColor.RED + "ゲームは満員です！（" + maxPlayers + "/" + maxPlayers + "）");
+            return;
+        }
+        
+        addPlayer(player);
+        
+        // ロビー位置へテレポート
+        Location lobby = currentArena != null ? currentArena.getLobby() : null;
+        if (lobby != null) {
+            player.teleport(lobby);
+        }
+        
+        // ヘルプアイテムを配布
+        giveHelpItem(player);
+        
+        broadcast(ChatColor.GREEN + player.getName() + ChatColor.YELLOW + " がロビーに参加しました！ " +
+                ChatColor.GRAY + "(" + getPlayerCount() + "/" + maxPlayers + ")");
+    }
+    
+    /**
+     * ロビーからプレイヤーを削除（退出時）
+     */
+    public void onPlayerLeaveLobby(Player player) {
+        if (state != GameState.LOBBY) {
+            return;
+        }
+        
+        if (players.containsKey(player.getUniqueId())) {
+            removePlayer(player.getUniqueId());
+            broadcast(ChatColor.RED + player.getName() + ChatColor.YELLOW + " がロビーから退出しました。 " +
+                    ChatColor.GRAY + "(" + getPlayerCount() + "/" + plugin.getConfigManager().getLobbyMaxPlayers() + ")");
+        }
+    }
+    
+    /**
+     * 自動ループが有効かどうか
+     */
+    public boolean isAutoLoopEnabled() {
+        return autoLoopEnabled;
+    }
+    
+    /**
+     * 時間をフォーマット（MM:SS）
+     */
+    private String formatTime(int seconds) {
+        int min = seconds / 60;
+        int sec = seconds % 60;
+        return String.format("%d:%02d", min, sec);
+    }
+    
     // ========== Game Flow ==========
     
     /**
      * ゲーム開始
      */
     public boolean startGame() {
-        if (state != GameState.WAITING) {
+        if (state != GameState.WAITING && state != GameState.LOBBY) {
             return false;
         }
         
@@ -383,7 +722,7 @@ public class GameManager {
         broadcast(ChatColor.GREEN + "========================================");
         
         startingTask = new BukkitRunnable() {
-            int countdown = 30; // エレメント選択フェーズ30秒
+            int countdown = 60; // エレメント選択フェーズ60秒
             int phase = 0; // 0=エレメント選択, 1=キング投票
             
             @Override
@@ -392,7 +731,7 @@ public class GameManager {
                     if (phase == 0) {
                         // エレメント選択終了、キング投票開始
                         phase = 1;
-                        countdown = 30; // キング投票30秒
+                        countdown = 60; // キング投票60秒
                         votingPhase = true; // キング投票フェーズ開始
                         startKingVotingPhase();
                         return;
@@ -425,12 +764,12 @@ public class GameManager {
                 // カウントダウン通知
                 if (phase == 0) {
                     // エレメント選択フェーズ - チャット通知
-                    if (countdown == 10 || countdown == 5 || countdown == 3) {
+                    if (countdown == 30 || countdown == 20 || countdown == 10 || countdown == 5 || countdown == 3) {
                         broadcast(ChatColor.YELLOW + "エレメント選択終了まで " + countdown + " 秒...");
                     }
                 } else {
                     // キング投票フェーズ - チャット通知
-                    if (countdown == 10 || countdown == 5 || countdown == 3) {
+                    if (countdown == 30 || countdown == 20 || countdown == 10 || countdown == 5 || countdown == 3) {
                         broadcast(ChatColor.GOLD + "キング投票終了まで " + countdown + " 秒...");
                     }
                 }
@@ -568,6 +907,9 @@ public class GameManager {
     private void beginGame() {
         state = GameState.RUNNING;
         
+        // 制限時間をセット
+        gameTimeRemaining = plugin.getConfigManager().getGameTimeLimit();
+        
         // コアを強制設置（バグ防止）
         placeCores();
         
@@ -696,6 +1038,28 @@ public class GameManager {
     }
     
     /**
+     * ロビーヘルプアイテムを付与
+     */
+    public void giveHelpItem(Player player) {
+        ItemStack item = new ItemStack(HELP_ITEM_MATERIAL);
+        ItemMeta meta = item.getItemMeta();
+        meta.setDisplayName(HELP_ITEM_NAME);
+        
+        List<String> lore = new ArrayList<>();
+        lore.add(ChatColor.GRAY + "右クリックでガイドを開く");
+        lore.add("");
+        lore.add(ChatColor.YELLOW + "• ゲームルール");
+        lore.add(ChatColor.YELLOW + "• コマンド一覧");
+        lore.add(ChatColor.YELLOW + "• エレメント情報");
+        lore.add(ChatColor.YELLOW + "• ショップアイテム");
+        meta.setLore(lore);
+        
+        item.setItemMeta(meta);
+        
+        player.getInventory().setItem(4, item); // 中央スロット
+    }
+    
+    /**
      * ゲームループ
      */
     private void startGameLoop() {
@@ -709,9 +1073,24 @@ public class GameManager {
                     return;
                 }
                 
-                // 拠点帰還チェック（毎秒）
+                // 毎秒の処理
                 if (tick % 20 == 0) {
+                    // 拠点帰還チェック
                     checkBaseReturn();
+                    
+                    // 残り時間カウントダウン
+                    if (gameTimeRemaining > 0) {
+                        gameTimeRemaining--;
+                        
+                        // 時間警告通知
+                        checkTimeWarnings();
+                        
+                        // 時間切れ判定
+                        if (gameTimeRemaining <= 0) {
+                            handleTimeUp();
+                            return;
+                        }
+                    }
                 }
                 
                 // 勝利判定
@@ -720,6 +1099,128 @@ public class GameManager {
                 tick++;
             }
         }.runTaskTimer(plugin, 20L, 1L);
+    }
+    
+    /**
+     * 残り時間の警告通知
+     */
+    private void checkTimeWarnings() {
+        // 特定の残り時間で通知
+        if (gameTimeRemaining == 300) { // 5分
+            broadcastTimeWarning(5, "分");
+        } else if (gameTimeRemaining == 180) { // 3分
+            broadcastTimeWarning(3, "分");
+        } else if (gameTimeRemaining == 60) { // 1分
+            broadcastTimeWarning(1, "分");
+        } else if (gameTimeRemaining == 30) { // 30秒
+            broadcastTimeWarning(30, "秒");
+        } else if (gameTimeRemaining == 10) { // 10秒
+            broadcastTimeWarning(10, "秒");
+        } else if (gameTimeRemaining <= 5 && gameTimeRemaining > 0) { // 5, 4, 3, 2, 1秒
+            broadcastTimeWarning(gameTimeRemaining, "秒");
+        }
+    }
+    
+    /**
+     * 残り時間警告をブロードキャスト
+     */
+    private void broadcastTimeWarning(int time, String unit) {
+        String color = time <= 30 && unit.equals("秒") ? ChatColor.RED.toString() : ChatColor.YELLOW.toString();
+        
+        broadcast(color + "⏰ 残り時間: " + ChatColor.WHITE + ChatColor.BOLD + time + unit);
+        
+        // サウンド
+        float pitch = time <= 5 && unit.equals("秒") ? 1.5f : 1.0f;
+        for (KLPlayer klp : getOnlinePlayers()) {
+            Player player = klp.getPlayer();
+            if (player != null) {
+                player.playSound(player.getLocation(), Sound.NOTE_PLING, 1.0f, pitch);
+            }
+        }
+    }
+    
+    /**
+     * 時間切れ時の処理
+     * 勝敗を判定してゲームを終了する
+     */
+    private void handleTimeUp() {
+        broadcast(ChatColor.RED + "" + ChatColor.BOLD + "⏰ 時間切れ！");
+        
+        // 全員にTitle通知
+        for (KLPlayer klp : getOnlinePlayers()) {
+            Player player = klp.getPlayer();
+            if (player != null) {
+                TitleUtil.sendTitle(player, 
+                        ChatColor.RED + "" + ChatColor.BOLD + "⏰ TIME UP!",
+                        ChatColor.WHITE + "勝敗を判定中...", 
+                        10, 60, 20);
+                player.playSound(player.getLocation(), Sound.ENDERDRAGON_GROWL, 1.0f, 1.0f);
+            }
+        }
+        
+        // 勝者を決定
+        Team winner = determineWinner();
+        
+        if (winner != null) {
+            endGame(winner);
+        } else {
+            // 完全引き分け（ランダム）
+            Team randomWinner = Math.random() < 0.5 ? Team.BLUE : Team.RED;
+            broadcast(ChatColor.GOLD + "完全な引き分け！ランダムで勝者を決定...");
+            endGame(randomWinner);
+        }
+    }
+    
+    /**
+     * 時間切れ時の勝者を決定
+     * @return 勝者チーム、完全引き分けの場合はnull
+     */
+    private Team determineWinner() {
+        TeamManager tm = plugin.getTeamManager();
+        
+        // 1. スコア比較
+        if (blueScore > redScore) {
+            broadcast(ChatColor.BLUE + "BLUE" + ChatColor.YELLOW + " がスコアで勝利！ (" + blueScore + " vs " + redScore + ")");
+            return Team.BLUE;
+        } else if (redScore > blueScore) {
+            broadcast(ChatColor.RED + "RED" + ChatColor.YELLOW + " がスコアで勝利！ (" + redScore + " vs " + blueScore + ")");
+            return Team.RED;
+        }
+        
+        // 2. キング生存比較
+        boolean blueKingAlive = isKingAlive(Team.BLUE);
+        boolean redKingAlive = isKingAlive(Team.RED);
+        
+        if (blueKingAlive && !redKingAlive) {
+            broadcast(ChatColor.BLUE + "BLUE" + ChatColor.YELLOW + " のキングが生存しているため勝利！");
+            return Team.BLUE;
+        } else if (redKingAlive && !blueKingAlive) {
+            broadcast(ChatColor.RED + "RED" + ChatColor.YELLOW + " のキングが生存しているため勝利！");
+            return Team.RED;
+        }
+        
+        // 3. 生存者数比較
+        int blueAlive = tm.getAliveCount(players, Team.BLUE);
+        int redAlive = tm.getAliveCount(players, Team.RED);
+        
+        if (blueAlive > redAlive) {
+            broadcast(ChatColor.BLUE + "BLUE" + ChatColor.YELLOW + " が生存者数で勝利！ (" + blueAlive + " vs " + redAlive + ")");
+            return Team.BLUE;
+        } else if (redAlive > blueAlive) {
+            broadcast(ChatColor.RED + "RED" + ChatColor.YELLOW + " が生存者数で勝利！ (" + redAlive + " vs " + blueAlive + ")");
+            return Team.RED;
+        }
+        
+        // 4. 完全引き分け
+        return null;
+    }
+    
+    /**
+     * 指定チームのキングが生存しているかチェック
+     */
+    private boolean isKingAlive(Team team) {
+        KLPlayer king = plugin.getKingManager().getKing(team);
+        return king != null && king.isAlive();
     }
     
     /**
@@ -804,50 +1305,232 @@ public class GameManager {
         // Shardスポーン停止
         plugin.getShardManager().stopSpawnLoop();
         
-        // 勝利Title
-        for (KLPlayer klp : getOnlinePlayers()) {
-            Player player = klp.getPlayer();
-            if (player != null) {
-                String title;
-                String subtitle;
-                
-                if (klp.getTeam() == winner) {
-                    title = ChatColor.GOLD + "" + ChatColor.BOLD + "🎉 勝利！ 🎉";
-                    subtitle = ChatColor.WHITE + "おめでとうございます！";
-                    player.playSound(player.getLocation(), Sound.LEVEL_UP, 1.0f, 1.0f);
-                } else {
-                    title = ChatColor.RED + "" + ChatColor.BOLD + "敗北...";
-                    subtitle = ChatColor.WHITE + "また次回頑張りましょう";
-                    player.playSound(player.getLocation(), Sound.WITHER_DEATH, 0.5f, 1.5f);
-                }
-                
-                TitleUtil.sendTitle(player, title, subtitle, 10, 100, 20);
-            }
-        }
+        // キングオーラ停止
+        plugin.getKingManager().stopAuraLoop();
         
-        // 結果発表
-        broadcast("");
-        broadcast(ChatColor.GOLD + "=====================================");
-        broadcast(ChatColor.GOLD + "        " + winner.getChatColor() + ChatColor.BOLD + 
-                winner.getDisplayName() + " TEAM WINS!");
-        broadcast(ChatColor.GOLD + "=====================================");
-        broadcast(ChatColor.WHITE + "  Final Score: " + 
-                Team.BLUE.getChatColor() + "BLUE " + blueScore + 
-                ChatColor.WHITE + " - " + 
-                Team.RED.getChatColor() + redScore + " RED");
-        broadcast(ChatColor.GOLD + "=====================================");
-        broadcast("");
+        // エリア占領ループ停止
+        plugin.getAreaManager().stopCaptureLoop();
         
         // 統計保存
         saveStats(winner);
         
-        // クリーンアップ
+        // 勝利演出フェーズを開始
+        startCelebrationPhase(winner);
+    }
+    
+    /**
+     * 勝利演出フェーズを開始
+     */
+    private void startCelebrationPhase(Team winner) {
+        int celebrationDuration = plugin.getConfigManager().getCelebrationDuration();
+        
+        // 勝利/敗北タイトルを表示
+        for (KLPlayer klp : getOnlinePlayers()) {
+            Player player = klp.getPlayer();
+            if (player != null) {
+                if (klp.getTeam() == winner) {
+                    TitleUtil.sendTitle(player, 
+                            ChatColor.GOLD + "" + ChatColor.BOLD + "🎉 勝利！ 🎉",
+                            ChatColor.WHITE + "やったぜ！", 
+                            10, celebrationDuration * 20, 20);
+                    player.playSound(player.getLocation(), Sound.LEVEL_UP, 1.0f, 1.0f);
+                } else {
+                    TitleUtil.sendTitle(player, 
+                            ChatColor.RED + "" + ChatColor.BOLD + "敗北...",
+                            ChatColor.WHITE + "また次がんばろう！", 
+                            10, celebrationDuration * 20, 20);
+                    player.playSound(player.getLocation(), Sound.WITHER_DEATH, 0.5f, 1.5f);
+                }
+            }
+        }
+        
+        // 詳細な戦績をチャットに表示
+        broadcastGameSummary(winner);
+        
+        // 花火演出（有効な場合）
+        if (plugin.getConfigManager().isCelebrationFireworksEnabled()) {
+            startFireworkShow(winner, celebrationDuration);
+        }
+        
+        // 演出終了後にクリーンアップ
         new BukkitRunnable() {
             @Override
             public void run() {
                 cleanup();
             }
-        }.runTaskLater(plugin, 100L); // 5秒後
+        }.runTaskLater(plugin, celebrationDuration * 20L);
+    }
+    
+    /**
+     * 詳細な戦績をチャットに表示
+     */
+    private void broadcastGameSummary(Team winner) {
+        // MVP算出
+        KLPlayer mvp = findMVP();
+        
+        // キルランキング取得
+        int topCount = plugin.getConfigManager().getCelebrationTopKillersCount();
+        List<KLPlayer> topKillers = getTopKillers(topCount);
+        
+        // チーム合計キル数
+        int blueKills = getTotalTeamKills(Team.BLUE);
+        int redKills = getTotalTeamKills(Team.RED);
+        
+        // ヘッダー
+        broadcast("");
+        broadcast(ChatColor.GOLD + "=========================================");
+        broadcast(ChatColor.WHITE + "  🎉 " + winner.getChatColor() + ChatColor.BOLD + 
+                winner.getDisplayName() + " チームの勝利！ " + ChatColor.WHITE + "🎉");
+        broadcast(ChatColor.GOLD + "=========================================");
+        
+        // スコア
+        broadcast(ChatColor.YELLOW + "📊 スコア: " + 
+                Team.BLUE.getChatColor() + "BLUE " + blueScore + "pt" + 
+                ChatColor.WHITE + " vs " + 
+                Team.RED.getChatColor() + "RED " + redScore + "pt");
+        
+        // MVP
+        if (mvp != null) {
+            broadcast(ChatColor.GOLD + "👑 MVP: " + 
+                    mvp.getTeam().getChatColor() + mvp.getName() + 
+                    ChatColor.WHITE + " (" + ChatColor.GREEN + mvp.getKillsThisGame() + "キル" + 
+                    ChatColor.WHITE + "/" + ChatColor.RED + mvp.getDeathsThisGame() + "デス" + 
+                    ChatColor.WHITE + ")");
+        }
+        
+        // キルランキング（キルがあるプレイヤーがいる場合のみ）
+        if (!topKillers.isEmpty()) {
+            broadcast("");
+            broadcast(ChatColor.AQUA + "🏆 キルランキング");
+            for (int i = 0; i < topKillers.size(); i++) {
+                KLPlayer klp = topKillers.get(i);
+                String rankColor;
+                String rankMark;
+                switch (i) {
+                    case 0: rankColor = ChatColor.GOLD.toString(); rankMark = "🥇"; break;
+                    case 1: rankColor = ChatColor.GRAY.toString(); rankMark = "🥈"; break;
+                    case 2: rankColor = ChatColor.RED.toString(); rankMark = "🥉"; break;
+                    default: rankColor = ChatColor.WHITE.toString(); rankMark = "  ";
+                }
+                broadcast(ChatColor.WHITE + "  " + rankMark + " " + rankColor + 
+                        klp.getTeam().getChatColor() + klp.getName() + 
+                        ChatColor.GRAY + " - " + ChatColor.GREEN + klp.getKillsThisGame() + "キル");
+            }
+        }
+        
+        // フッター
+        broadcast("");
+        broadcast(ChatColor.GRAY + "チーム戦績: " + 
+                Team.BLUE.getChatColor() + "BLUE " + blueKills + "キル" + 
+                ChatColor.GRAY + " | " + 
+                Team.RED.getChatColor() + "RED " + redKills + "キル");
+        broadcast(ChatColor.GOLD + "=========================================");
+        broadcast(ChatColor.GREEN + "お疲れ様でした！");
+        broadcast("");
+    }
+    
+    /**
+     * MVP（最多キル）を算出
+     */
+    private KLPlayer findMVP() {
+        KLPlayer mvp = null;
+        int maxKills = 0;
+        
+        for (KLPlayer klp : players.values()) {
+            if (klp.getKillsThisGame() > maxKills) {
+                maxKills = klp.getKillsThisGame();
+                mvp = klp;
+            }
+        }
+        
+        return mvp;
+    }
+    
+    /**
+     * キルランキング上位を取得
+     */
+    private List<KLPlayer> getTopKillers(int count) {
+        List<KLPlayer> sorted = new ArrayList<>(players.values());
+        sorted.sort((a, b) -> b.getKillsThisGame() - a.getKillsThisGame());
+        
+        // キル0のプレイヤーは除外
+        sorted.removeIf(klp -> klp.getKillsThisGame() == 0);
+        
+        if (sorted.size() > count) {
+            return sorted.subList(0, count);
+        }
+        return sorted;
+    }
+    
+    /**
+     * チームの合計キル数を取得
+     */
+    private int getTotalTeamKills(Team team) {
+        int total = 0;
+        for (KLPlayer klp : players.values()) {
+            if (klp.getTeam() == team) {
+                total += klp.getKillsThisGame();
+            }
+        }
+        return total;
+    }
+    
+    /**
+     * 花火演出を開始
+     */
+    private void startFireworkShow(Team winner, int duration) {
+        // 花火は最初の5秒だけ
+        int fireworkDuration = Math.min(5, duration);
+        
+        new BukkitRunnable() {
+            int ticks = 0;
+            
+            @Override
+            public void run() {
+                if (ticks >= fireworkDuration * 20) {
+                    cancel();
+                    return;
+                }
+                
+                // 1秒ごとに花火を打ち上げ
+                if (ticks % 20 == 0) {
+                    for (KLPlayer klp : getOnlinePlayers()) {
+                        if (klp.getTeam() == winner && klp.isOnline()) {
+                            Player player = klp.getPlayer();
+                            if (player != null) {
+                                spawnFirework(player.getLocation().add(0, 1, 0), winner);
+                            }
+                        }
+                    }
+                }
+                
+                ticks++;
+            }
+        }.runTaskTimer(plugin, 0L, 1L);
+    }
+    
+    /**
+     * 花火を打ち上げ
+     */
+    private void spawnFirework(Location location, Team team) {
+        Firework firework = location.getWorld().spawn(location, Firework.class);
+        FireworkMeta meta = firework.getFireworkMeta();
+        
+        // チームカラーで花火を作成
+        Color primary = team == Team.BLUE ? Color.BLUE : Color.RED;
+        Color secondary = team == Team.BLUE ? Color.AQUA : Color.ORANGE;
+        
+        FireworkEffect effect = FireworkEffect.builder()
+                .withColor(primary)
+                .withFade(secondary)
+                .with(FireworkEffect.Type.BALL_LARGE)
+                .trail(true)
+                .flicker(true)
+                .build();
+        
+        meta.addEffect(effect);
+        meta.setPower(1);
+        firework.setFireworkMeta(meta);
     }
     
     /**
@@ -866,10 +1549,10 @@ public class GameManager {
     }
     
     /**
-     * 強制終了
+     * 強制終了（統計は保存する）
      */
     public void forceStop() {
-        if (state == GameState.WAITING) {
+        if (state == GameState.WAITING || state == GameState.LOBBY) {
             return;
         }
         
@@ -878,10 +1561,35 @@ public class GameManager {
     }
     
     /**
-     * クリーンアップ
+     * 強制終了（統計保存なし - /kl stop用）
      */
-    private void cleanup() {
+    public void forceStopWithoutStats() {
+        if (state == GameState.WAITING || state == GameState.LOBBY) {
+            return;
+        }
+        
+        state = GameState.ENDING;
+        
+        if (gameLoopTask != null) {
+            gameLoopTask.cancel();
+            gameLoopTask = null;
+        }
+        
+        broadcast(ChatColor.RED + "========================================");
+        broadcast(ChatColor.RED + "" + ChatColor.BOLD + "  ゲームが強制終了されました");
+        broadcast(ChatColor.GRAY + "  統計は記録されません");
+        broadcast(ChatColor.RED + "========================================");
+        
+        // 統計を保存せずにクリーンアップ
+        cleanupWithoutLoop();
+    }
+    
+    /**
+     * クリーンアップ（ループなし - 強制終了用）
+     */
+    private void cleanupWithoutLoop() {
         state = GameState.WAITING;
+        autoLoopEnabled = false;
         
         // スコアボード停止
         plugin.getScoreboardManager().stop();
@@ -900,26 +1608,7 @@ public class GameManager {
         for (KLPlayer klp : players.values()) {
             Player player = klp.getPlayer();
             if (player != null) {
-                // インベントリと防具を完全にクリア
-                player.getInventory().clear();
-                player.getInventory().setHelmet(null);
-                player.getInventory().setChestplate(null);
-                player.getInventory().setLeggings(null);
-                player.getInventory().setBoots(null);
-                
-                // キングの体力を元に戻す
-                player.setMaxHealth(20.0);
-                player.setHealth(20.0);
-                player.setFoodLevel(20);
-                player.setGameMode(GameMode.SURVIVAL);
-                
-                // ポーション効果をクリア
-                player.getActivePotionEffects().forEach(effect -> 
-                        player.removePotionEffect(effect.getType()));
-                
-                // walkSpeedをデフォルトに戻す（Wind対策）
-                player.setWalkSpeed(0.2f);
-                
+                resetPlayerState(player);
                 if (lobby != null) {
                     player.teleport(lobby);
                 }
@@ -928,6 +1617,80 @@ public class GameManager {
         
         players.clear();
         reset();
+    }
+    
+    /**
+     * クリーンアップ（自動ループ対応）
+     */
+    private void cleanup() {
+        // スコアボード停止
+        plugin.getScoreboardManager().stop();
+        
+        // NPC削除
+        plugin.getNPCManager().removeAllNPCs();
+        
+        // Shard停止
+        plugin.getShardManager().stopSpawnLoop();
+        
+        // アップグレードリセット
+        plugin.getUpgradeManager().reset();
+        
+        // プレイヤーをロビーへ
+        Location lobby = currentArena != null ? currentArena.getLobby() : null;
+        for (KLPlayer klp : players.values()) {
+            Player player = klp.getPlayer();
+            if (player != null) {
+                resetPlayerState(player);
+                if (lobby != null) {
+                    player.teleport(lobby);
+                }
+            }
+        }
+        
+        players.clear();
+        reset();
+        
+        // 自動ループが有効なら、少し待ってからロビーカウントダウン再開
+        if (autoLoopEnabled) {
+            state = GameState.LOBBY;
+            broadcast(ChatColor.YELLOW + "次のゲームの準備中...");
+            
+            new BukkitRunnable() {
+                @Override
+                public void run() {
+                    if (autoLoopEnabled) {
+                        startLobbyCountdown();
+                    }
+                }
+            }.runTaskLater(plugin, 100L); // 5秒後
+        } else {
+            state = GameState.WAITING;
+        }
+    }
+    
+    /**
+     * プレイヤーの状態をリセット（共通処理）
+     */
+    private void resetPlayerState(Player player) {
+        // インベントリと防具を完全にクリア
+        player.getInventory().clear();
+        player.getInventory().setHelmet(null);
+        player.getInventory().setChestplate(null);
+        player.getInventory().setLeggings(null);
+        player.getInventory().setBoots(null);
+        
+        // キングの体力を元に戻す
+        player.setMaxHealth(20.0);
+        player.setHealth(20.0);
+        player.setFoodLevel(20);
+        player.setGameMode(GameMode.SURVIVAL);
+        
+        // ポーション効果をクリア
+        player.getActivePotionEffects().forEach(effect -> 
+                player.removePotionEffect(effect.getType()));
+        
+        // walkSpeedをデフォルトに戻す（Wind対策）
+        player.setWalkSpeed(0.2f);
     }
     
     /**

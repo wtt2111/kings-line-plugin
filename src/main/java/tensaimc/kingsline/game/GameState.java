@@ -6,9 +6,14 @@ package tensaimc.kingsline.game;
 public enum GameState {
     
     /**
-     * ゲーム待機中 - プレイヤーが参加可能
+     * 自動ループ停止中 - /kl start 待ち
      */
     WAITING("待機中"),
+    
+    /**
+     * ロビー待機中 - カウントダウン中、プレイヤーが参加可能
+     */
+    LOBBY("ロビー"),
     
     /**
      * 開始準備中 - エレメント選択、キング投票

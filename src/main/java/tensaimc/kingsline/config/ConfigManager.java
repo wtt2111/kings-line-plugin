@@ -17,6 +17,7 @@ public class ConfigManager {
     private int respawnTime;
     private int pointsToWin;
     private int smallScaleThreshold;
+    private int gameTimeLimit;
     
     // スコア設定
     private int scoreKill;
@@ -50,6 +51,21 @@ public class ConfigManager {
     private int spCooldown;
     private int spRequiredHits;
     
+    // ロビー設定
+    private int lobbyCountdownTime;
+    private int lobbyShortcutPlayers;
+    private int lobbyShortcutTime;
+    private int lobbyMinPlayers;
+    private int lobbyMaxPlayers;
+    
+    // 演出設定
+    private int celebrationDuration;
+    private boolean celebrationFireworks;
+    private int celebrationTopKillersCount;
+    
+    // パーティー設定
+    private int partyMaxSize;
+    
     public ConfigManager(KingsLine plugin) {
         this.plugin = plugin;
         loadConfig();
@@ -66,6 +82,7 @@ public class ConfigManager {
         respawnTime = config.getInt("game.respawn-time", 5);
         pointsToWin = config.getInt("game.points-to-win", 500);
         smallScaleThreshold = config.getInt("game.small-scale-threshold", 4);
+        gameTimeLimit = config.getInt("game.time-limit", 3000);
         
         // スコア設定
         scoreKill = config.getInt("score.kill", 1);
@@ -98,6 +115,21 @@ public class ConfigManager {
         elementSelectionDuration = config.getInt("element.selection-duration", 20);
         spCooldown = config.getInt("element.sp-cooldown", 15);
         spRequiredHits = config.getInt("element.sp-required-hits", 10);
+        
+        // ロビー設定
+        lobbyCountdownTime = config.getInt("lobby.countdown-time", 600);
+        lobbyShortcutPlayers = config.getInt("lobby.shortcut-players", 14);
+        lobbyShortcutTime = config.getInt("lobby.shortcut-time", 120);
+        lobbyMinPlayers = config.getInt("lobby.min-players", 10);
+        lobbyMaxPlayers = config.getInt("lobby.max-players", 100);
+        
+        // 演出設定
+        celebrationDuration = config.getInt("celebration.duration", 15);
+        celebrationFireworks = config.getBoolean("celebration.fireworks", true);
+        celebrationTopKillersCount = config.getInt("celebration.top-killers-count", 3);
+        
+        // パーティー設定
+        partyMaxSize = config.getInt("party.max-size", 5);
     }
     
     public void reload() {
@@ -112,6 +144,7 @@ public class ConfigManager {
     public int getRespawnTime() { return respawnTime; }
     public int getPointsToWin() { return pointsToWin; }
     public int getSmallScaleThreshold() { return smallScaleThreshold; }
+    public int getGameTimeLimit() { return gameTimeLimit; }
     
     // スコア設定
     public int getScoreKill() { return scoreKill; }
@@ -146,6 +179,21 @@ public class ConfigManager {
     public int getSpCooldownTicks() { return spCooldown * 20; }
     public long getSpCooldownMillis() { return spCooldown * 1000L; }
     public int getSpRequiredHits() { return spRequiredHits; }
+    
+    // ロビー設定
+    public int getLobbyCountdownTime() { return lobbyCountdownTime; }
+    public int getLobbyShortcutPlayers() { return lobbyShortcutPlayers; }
+    public int getLobbyShortcutTime() { return lobbyShortcutTime; }
+    public int getLobbyMinPlayers() { return lobbyMinPlayers; }
+    public int getLobbyMaxPlayers() { return lobbyMaxPlayers; }
+    
+    // 演出設定
+    public int getCelebrationDuration() { return celebrationDuration; }
+    public boolean isCelebrationFireworksEnabled() { return celebrationFireworks; }
+    public int getCelebrationTopKillersCount() { return celebrationTopKillersCount; }
+    
+    // パーティー設定
+    public int getPartyMaxSize() { return partyMaxSize; }
     
     // Raw config access
     public FileConfiguration getConfig() { return config; }

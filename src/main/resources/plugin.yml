@@ -9,6 +9,19 @@ commands:
     description: King's Line メインコマンド
     usage: /<command> [subcommand]
     aliases: [kingsline, kingline]
+  p:
+    description: パーティーコマンド
+    usage: /<command> [player|list|leave|disband|accept|deny]
+    aliases: [party]
+  pl:
+    description: パーティーメンバー一覧
+    usage: /<command>
+  chat:
+    description: チャットモード切り替え
+    usage: /<command> [p|party|a|all|t|team]
+  ch:
+    description: チャットモード切り替え（省略形）
+    usage: /<command> [p|party|a|all|t|team]
 
 permissions:
   kingsline.play:
@@ -19,6 +32,9 @@ permissions:
     default: true
   kingsline.party:
     description: パーティー機能を使う
+    default: true
+  kingsline.chat:
+    description: チャットモード切り替え
     default: true
   kingsline.admin:
     description: 管理者コマンドを使用

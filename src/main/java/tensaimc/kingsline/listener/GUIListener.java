@@ -7,10 +7,15 @@ import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.inventory.Inventory;
 import tensaimc.kingsline.KingsLine;
+import tensaimc.kingsline.gui.CommandHelpGUI;
+import tensaimc.kingsline.gui.ElementInfoGUI;
 import tensaimc.kingsline.gui.ElementSelectGUI;
+import tensaimc.kingsline.gui.GameRulesGUI;
 import tensaimc.kingsline.gui.KingVoteGUI;
+import tensaimc.kingsline.gui.LobbyHelpGUI;
 import tensaimc.kingsline.gui.NPCMenuGUI;
 import tensaimc.kingsline.gui.ShopGUI;
+import tensaimc.kingsline.gui.ShopPreviewGUI;
 import tensaimc.kingsline.gui.UpgradeGUI;
 
 /**
@@ -66,6 +71,43 @@ public class GUIListener implements Listener {
         if (KingVoteGUI.isThisGUI(title)) {
             event.setCancelled(true);
             plugin.getKingVoteGUI().handleClick(player, event.getRawSlot());
+            return;
+        }
+        
+        // ========== ロビーヘルプGUI系 ==========
+        
+        // ロビーヘルプメインメニュー
+        if (LobbyHelpGUI.isThisGUI(title)) {
+            event.setCancelled(true);
+            plugin.getLobbyHelpGUI().handleClick(player, event.getRawSlot());
+            return;
+        }
+        
+        // ゲームルールGUI
+        if (GameRulesGUI.isThisGUI(title)) {
+            event.setCancelled(true);
+            plugin.getGameRulesGUI().handleClick(player, event.getRawSlot());
+            return;
+        }
+        
+        // コマンドヘルプGUI
+        if (CommandHelpGUI.isThisGUI(title)) {
+            event.setCancelled(true);
+            plugin.getCommandHelpGUI().handleClick(player, event.getRawSlot());
+            return;
+        }
+        
+        // エレメント情報GUI
+        if (ElementInfoGUI.isThisGUI(title)) {
+            event.setCancelled(true);
+            plugin.getElementInfoGUI().handleClick(player, event.getRawSlot());
+            return;
+        }
+        
+        // ショッププレビューGUI
+        if (ShopPreviewGUI.isThisGUI(title)) {
+            event.setCancelled(true);
+            plugin.getShopPreviewGUI().handleClick(player, event.getRawSlot());
             return;
         }
     }
